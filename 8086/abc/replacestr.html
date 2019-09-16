@@ -1,0 +1,75 @@
+<!doctype html>
+<style>
+    .outer {
+        display: flex;
+        justify-content: center;
+    }
+
+    .outer>.right {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        margin-left: 2em;
+    }
+
+    a {
+        text-align: center;
+    }
+
+    input {
+        margin: .3em;
+        padding: .3em;
+    }
+</style>
+<p>
+    把文件中的 \n 转为 \r 或者 \r\n 时 powershell 就显得麻烦了.
+    由于语法麻烦, 虽然今天 2019.8.27 得知 powershell 可以跨平台, 我也不想在 mac 上装个 powershell.
+    vscode 的搜索替换只支持替换为 \n. 于是写了个 js 来转换子串.<br><br>
+
+    用 file: 打开本文件时必须禁用网络安全, 否则 chrome 不让下载<br>
+    chrome --user-data-dir=c:/windows/temp/chrome --disable-web-security<br><br>
+
+    这个程序出乎我意料的是, 在 a 的点击事件中修改 href, 居然还生效了; 也就是说点击时还未执行查询 href 并跳转的代码.
+    回想 preventDefault 可以在点击事件里阻止跳转, 应该说事件的流程确实是这样.
+    但这样的话鼠标悬停, 浏览器显示 href 的功能岂不是一直都潜在的不准确?<br><br>
+</p>
+<div class=outer>
+    <textarea cols=60 rows=14></textarea>
+    <div class=right>
+        <div><input class=from placeholder=from></div>
+        <div><input class=to placeholder=to></div>
+        <a href=#>download</a>
+    </div>
+</div>
+<script>
+    var download = document.querySelector("a"),
+        textarea = document.querySelector("textarea"),
+        from = document.querySelector(".from"),
+        to = document.querySelector(".to");
+
+    download.addEventListener("click", onClick);
+
+    function onClick(e) {
+        var text = textarea.value,
+            s1 = from.value,
+            s2 = JSON.parse('"' + to.value + '"'),
+            blob, url;
+
+        if (text && s1 && s2) {
+            s1 = new RegExp(s1, "g");
+            blob = new Blob([text.replace(s1, s2)], { type: "text/plain" });
+            url = URL.createObjectURL(blob);
+
+            download.href = url;
+            download.setAttribute("download", "replace-str");
+            from.value = to.value = "";
+
+            setTimeout(() => {
+                download.href = "#";
+                download.removeAttribute("download");
+                URL.revokeObjectURL(url);
+            }, 0);
+        } else
+            e.preventDefault(); // don't go to #
+    }
+</script>

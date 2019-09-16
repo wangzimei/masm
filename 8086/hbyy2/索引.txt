@@ -1,0 +1,33 @@
+
+
+a   application, 不是 program 以避免和 problem 首字母重合
+c   check point
+m   miscellaneous
+p   problem
+
+
+e9.asm              实验 9 - 第一屏的起始地址是 b8000h, 字符属性的定义
+11c-2.asm           11.12 - 标志寄存器在 Debug 中的表示
+13m-4.asm           13.6 - bios int 10h 中断例程, 2 号子程序, 设置光标位置.
+
+
+
+
+替换 int 9
+在搜索 The Undocumented PC 这本书时, 亚马逊上看到一个书评给了三星, 共五星.
+http://www.amazon.com/The-Undocumented-PC-Programmers-Edition/dp/0201479508
+
+说这本书有毛病, 比如 PC/AT 之后在 tsr 中查看击键的安全方法是用 int 4fh 而不是 int 9,
+在 int 9 中你查看击键之后键盘可以修改键盘缓冲, 接下去你调用的原 int 9 程序再去读取按键,
+得到的按键和你这个程序看到的不一定一样.
+
+An example of the first problem would be the descriptions of INT 9 and INT 15h fcn 4Fh.
+After the PC/AT, the only safe way to look at a keystroke within a TSR, and then pass it
+on if it is not a keystroke for the TSR, is to intercept using INT fcn 4Fh -- if a TSR
+uses INT 9, the keyboard is free to replace the value in the keystoke buffer with the
+next keystroke as soon as it was read by the TSR, and "passing on" the INT 9 interrupt
+means that the "passed to" application may never see the keystroke that the TSR first
+intercepted.
+
+
+

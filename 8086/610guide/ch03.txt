@@ -1,0 +1,77 @@
+
+p74 ch3
+
+.model small
+.nearstack
+.code / .data / ...
+产生等价于下列语句的 assume
+ASSUME cs:_TEXT, ds:DGROUP, ss:DGROUP
+
+
+p???/p49
+Notice the ORG statement in this example. ... It places the first instruction
+at offset 100h in the code segment to create space for a 256-byte (100h)
+data area called the Program Segment Prefix (PSP).
+看到上面的话我有 2 个想法
+1. org xxx 只是通知 masm 把其后语句的地址视为 xxx, 并不会把该语句放到第 xxx 字节处
+2. 可我确实见过 com 文件前 100h 字节全是 0 的, 当时还搜索 masm org full of zeros 得到下面网页
+    https://stackoverflow.com/questions/15199938/org-0c700h-gives-weird-output
+    可现在编译不出这种前面一堆 0 的 com 文件了
+
+short   jmp     rel8
+near    jmp     rel16, r/m16
+far     jmp     ptr16:16, m16:16
+
+
+p???/p50
+这里对 Near Code 和 Far Code 的描述非常含糊, 委婉表达了远代码通过 call seg:offset 调用, 用 retf 返回;
+但既没有写出 call 和 retf, 也没有提到关键因素 - masm 关键字 proc.
+
+近代码是段内代码, 远代码是段外代码. 既然是调用, 就只考虑代码中可以调用的部分, 即代码标签;
+masm 又从这部分里圈出一部分 - 那些用 proc 定义的代码; 因此文章这部分说的近代码远代码指近过程远过程
+
+近代码是用 fn proc near 定义的过程, 远代码是用 ff proc far 定义的过程; proc 是 masm 发明的, 不是 x86 指令
+- fn proc near, 由于 ret = retn, masm 不做改动
+- ff proc far , masm 把其中的 ret 改为 retf
+masm 看到 call f 时查看 f 的类型, 如果是 proc 则一定是 near 或 far
+- near, 把 call 改为近调用
+- far , 段内, 把 call 改为 push cs + 近调用; 段外, 把 call 改为远调用
+- 近调用远调用参考上面的那 3 个 jmp; near 和 short 都是近
+
+显而易见, 近调用一个远过程 (而不 push cs) 或远调用一个近过程, 过程返回时肯定导致栈不是原样
+在 masm 中如果一律用 proc 定义过程, 则根据上面叙述的处理方式, 不会产生调用类型和过程类型不匹配
+即使不用 proc 用代码标签, masm 也能发现明显不正确的代码, 比如 call 远标签, 从而产生编译错误
+
+在试图理解本部分内容时我搜索到一个网页, 正是我要问的问题
+https://stackoverflow.com/questions/20637718/should-i-avoid-using-retf
+他的疑问是: 定义过程时 (他用的是代码标签, 没有用 proc) 要么用 retf 要么用 retn; 而调用时在段外用远调用, 段内用近调用,
+肯定有一个调用会出错吧?
+现在我可以回答这个问题: 肯定有一个调用会出错. retf 的过程只能远调用; retn 的过程只能近调用, 进而 retn 的过程只能定义在本段
+
+根据 masm 把调用段内的远过程写为 push cs/call near, 即近调用段内远过程, 可推知如果远调用了段内近过程, 调用后应该 pop
+思考题: 近调用段外近过程? 近调用段外远过程? 远调用段外近过程?
+
+假设远标签 f, 我用 push cs/call f 行不行? 不行. call f 导致编译错误, 原因是,
+远调用涉及 4 个地址, caller seg:caller next 是返回地址; callee seg:calee offset 是 f 的地址.
+push cs/call f 中已知 caller seg, caller next, calee offset 而 callee seg 未知, 从而没法跳到 f
+
+"等一下!" 你突然发问, "编译器都知道 f 是远标签从而产生编译错误了, 你却说他不知道 callee seg?"
+"呃... call 标签 f 是 masm 语法, masm 确实知道 f 的段地址. 前面的已知 3 未知 1 实在说的是只给个数字偏移的情况, 如果给个
+标签那它的地址总是已知的, 因此我前面的表达有错误; 至于为啥 masm 不像修改其他代码一样给 f 加上段地址, 我就不知道了"
+
+
+p???/p60    Saving Operands on the Stack
+
+"When a value is pushed onto the stack, the assembler decreases the SP (Stack Pointer) register by 2."
+- 错误. 应该是 processor decreases the SP
+
+Note The 8086 and 8088 processors differ from later Intel processors in how they push and pop the
+SP register. If you give the statement push sp with the 8086 or 8088, the word pushed is the word in
+SP after the push operation.
+
+
+p???/p63    Defining Pointer Types with TYPEDEF
+
+
+
+

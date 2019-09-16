@@ -1,0 +1,64 @@
+
+讲历史. 基本没啥用的章节. 以后忽略这种无用内容
+
+看来这种废话写作风格 80 年代就有了. msdn 到处都是这些废话文章, 那么多文章也不大可能是同一个人写的吧?
+如果是多个人写的, 这些人是怎么形成了这种默契?
+
+========== new since 5.1
+
+BYTE instead of DB
+typedef
+
+syntax for defining and using structures and records has been enhanced
+union
+
+complete CodeView information for all types
+
+.REPEAT .UNTIL .UNTILCXZ; .WHILE .ENDW; .IF .ELSE .ELSEIF
+
+extended PROC syntax; PROTO, INVOKE
+
+optimizes jumps by automatically determining the most efficient coding for a jump and then generating the appropriate code
+
+externdef
+
+macro - default arguments, required arguments, vararg
+macro - while
+macro - macro function which returns text macros, predefined text macros
+
+.STARTUP and .EXIT generate appropriate startup and exit code
+
+flat memory model in windows nt
+H2INC.EXE
+assembly routines to create tsr
+
+other minor new features
+
+
+========== new since 6.0
+
+ml.exe
+
+compatible with 5.1
+
+
+========== new since not sure 6.0 or 6.1
+
+access all windows api using libw.lib
+
+Program listings now show instruction timings
+
+
+========== new since 6.1
+
+ML now runs in 32-bit protected mode under MS-DOS, for assembling large source
+
+All utilities have been updated for version 6.1, doc enhance
+
+debugging information for CodeView 4.0+
+
+more compatible than 6.0 with 5.1
+
+
+
+

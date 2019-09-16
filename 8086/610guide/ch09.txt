@@ -1,0 +1,1172 @@
+
+本书第 9 章讲宏. 宏占据 masm 相当大的一部分内容, 但本章和本书其他部分一样说的既不清楚也不全面, masm 又果然不负众望一如
+既往的 bug 连连, 照着本章安排的文字去学习宏会很困惑. 因此我整理了 masm 宏的内容, 放在这里.
+
+masm 和 c 都有宏. 宏是一门编程语言, 宏程序用来把一些字符串替换成另外的字符串; 替换宏就是执行宏程序. masm 和 c 均没有独
+立的宏编译/解释/执行器, 它们的编译器带有解释宏的模块, 编译源文件前会先用该模块执行宏程序以修改源文件, 称为预处理; 所以
+大家可能意识不到自己编写并执行了宏程序. 宏只认识宏语法, 不认识 masm 或 c 语法, 学习宏不要求其它 masm 知识; 不过作为生成
+汇编代码的 masm, 除了宏也不剩啥东西了.
+
+masm 从上往下读取行, 从左往右处理行里的文本.
+读 1 行 = 一直读到 \n, 丢弃 \n; 如果最后一个非空白字符是 \, 丢弃 \, 读到下 1 个 \n; 循环.
+
+展开
+替换宏可能得到其他宏, 继续替换得到的宏直至没有宏, 这个反复替换的过程叫展开; 不严格区分时这俩词通用. 展开宏就是构造一棵
+树, masm 称这个树的高度为 nesting level (nl), nl 超过规定值会停止处理该行并报错 A2123.
+
+宏程序执行的结果是宏消失, 源代码改变. 2000 a.d. 之后的源码级调试里可能看到的是展开前的代码, 宏函数看起来就像一般函数,
+记住这只是有益的假象, 用来保持源代码的行号. 宏在编译前展开, 消失.
+
+按展开后的形式, 宏分两种
+inline  行内宏展开为一个不包含 \n 的字符串; 只能把几个字换成另几个字
+block   块宏展开为至少包含一个 \n 的字符串; 只能把一行换成若干行. 块宏的名字若不是一行的第一个名字则视为普通字符串
+* 不存在 inline-block 或 inline flow-root 宏
+
+本章按定义方式把宏为分 4 种
+1. 文本宏, inline, 展开宏名
+2. 重复块, block , 展开整个块
+3. 宏过程, block , 展开宏名 + 参数列表
+4. 宏函数, inline, 展开宏名 + 圆括号里的参数列表. 宏函数若不跟圆括号则视为普通字符串
+
+展开的结果
+文本宏展开为其值
+重复块把块内的语句就地展开指定次
+宏过程把块展开在调用处
+宏函数把块展开在调用处所在行的前面, 然后用 exitm 指出的值替换调用处
+
+字面量. 源文件里的所有语句都是字面量; 解析之后得到信物; 然后得到关键字, 操作符, 名字, 值. 宏程序使用其中的一部分.
+- masm 说的 constexpr 包括整数字面量和整数表达式字面量, 长度由 option expr16/expr32 决定.
+- 引号括起来的字面量的类型不是字符串; 在预处理里不知道算啥类型; 在汇编里类型是整数列表, 整数是字符的 ascii 值.
+
+变量. 预处理阶段的变量是汇编阶段的常量, 有下列类型
+integer                         [隐式转换] if 视条件里的串为整数表达式
+    123                         整数字面量
+    tag = constexpr             按当前 radix 对表达式求值, 得到整数. error A2050: real or BCD number not allowed
+string                          字符串, 或者叫文本. 有 3 种形式
+    <>                          字符串字面量, 用尖括号包起来
+    args as `% arg` of...       catstr/exitm/textequ/macro-procedure/macro-function
+    args as `f(arg), f(<arg>)`  f 是宏函数, 宏函数把前述参数视为字符串
+text macro                      文本宏, 即字符串变量
+    tag textequ text-item       textequ = catstr, text-item = 文本项; exitm 也后跟文本项; 文本项是下面 4 种
+        <text>                  [尖括号] 尖括号内的转义字符: ! 转义下一个字符, \ 续行
+        % constexpr             [百分号] 按当前 radix 对表达式求值, 转为字符串
+        macrofunction()         [圆括号] 使用宏函数的返回值
+        textmacro               [没符号] 别名
+macro procedure/function        无法在单行里定义
+    tag macro                   macro function 在调用处所在行的前面依次展开, 并把调用处替换为返回的字符串. 比如
+        ...                     % var textequ <mf1() mf2()> 在这行前面展开 mf1, 用返回值替换 mf1(), 展开 mf2,
+    endm                        用返回值替换 mf2()
+code label                      标签是常量
+    tag:
+data label                      标签是常量
+    tag byte/word/... init
+
+equ 是 masm 5 就有的关键字, 试了试可以当 textequ 和 = 使, 具体啥区别本书一如既往的说不清楚, 我也不太想知道
+通过书上说的, 能确定的是, 如果 equ 定义了整数则该整数不能再次赋值
+
+有特殊意义的符号
+!   在尖括号里视下一字符为字面值, 主要用来转义尖括号; 在其他地方无特殊意义
+%   行首时展开该行的文本宏和宏函数; 文本项里视后面的字符串为表达式, 求值后转为字符串
+&   文档里叫 substitution, 在模式 2 中用于标记宏
+<>  包围串字面量. 有 4 个地方经常使用尖括号:
+    1. 宏的实参. 假设调用处写的是 before, 宏里面看到的是 after, 有
+        before  <abc>   8<*H<(*&>h>c      <((*((_)(^!%, $!%#!@#$%>
+        after   abc   8*H<(*&>hc      ((*((_)(^%, $%#@#$
+        可以看到 masm 删掉了嵌套等级 = 1 的尖括号, 简直奇葩. 删掉尖括号导致 vararg 区分不了传入了几个参数
+        为了使用宏参数, 必须牢记这奇葩的处理方式
+    2. 文本项里用尖括号, 圆括号, 百分号, 没符号来得到字符串
+    3. for, forc 的第二个参数
+    4. 莫名其妙的地方: option nokeyword: <xxx>
+\   行尾时续行
+
+展开模式
+- 这是本章唯一的重点, 至关重要! 它依赖一大堆概念我不得不把它放这么靠下的位置.
+- 展开模式仅适用于行内宏; 块宏只有一种展开模式, % 影响的是它的参数, 块宏的名字也不靠 & 确定
+- [死区] 模式 1 和 2 都不从这些地方查找宏名: 宏函数参数的尖括号, 没符号
+
+模式 1 - 如果一句话不以 % 打头, 以此模式确定该句的宏
+    边展开, 边检查语法. nl 不能大于 20 所以可能是递归调用
+    [过滤] 不从下列地方查找宏名
+        引号, 尖括号; 块宏, echo, name, title, ... 的参数; for, forc 的参数; 文本项的尖括号, 没符号
+    [撮合] 若展开出的串最后一个信物是宏函数名, 往后查找圆括号以展开该函数 (bug1); 否则
+    [不拼接原则] 不和后面的串拼接. 撮合是拼接的一种
+
+模式 2 - 如果一句话以 % 打头, 以此模式确定该句的宏
+    nl 不能大于未知 (520+?) 所以可能是循环
+    如果宏名挨着 &, 展开时删掉 &; 引号外除非为了隔开两个名字 tok1&tok2 否则不需要 &
+    两个反斜杠变一个反斜杠; 一个反斜杠删掉
+    也展开这些宏: 引号里带 & 的; 尖括号里的; echo, name, title, for, forc, ... 的参数; 文本项
+    [惰性环境] 引号里的信物必须挨着至少 1 个 & 才算宏名, 至多 2 个 = 两边各一个即 &tok& 或 &f()&
+    删掉行首的 1 个 %, 展开, 不检查语法. 完毕查看行首, 如果行首以 % 打头, 再来一遍; 否则以模式 1 再来一遍
+
+bug1: 此链最后一个调用必须返回文本宏否则报 A2039, 给人感觉调用结果没有结束符; 撮合无论成功与否 -EP 都能看到一堆乱码
+    模式 2 撮合, 拼接都正常, -EP 也没有乱码. 我感觉模式 2 只管展开, 让下一遍去发现拼接结果, 但不知道是否立即撮合. 为什
+    么怀疑模式 2 的立即撮合呢? 因为如果立即做, -EP 又不出乱码, 说明模式 1 和 2 各自有执行函数的代码, 显然不简练
+note1: 肯定还有很多没有列出来的情况, 只能遇到了再添加
+note2: 这杂乱无章, 千疮百孔, 全是特殊情况的处理方式是好多 microsoft 产品的共性, msbuild, .net, windows, ...
+
+p???/p193 Returning Values with Macro Functions
+- 如果宏过程有用于退出的 exitm xxx 语句, 可以是在 if 0 里面 (bug), 宏过程变成宏函数
+- exitm, %exitm xxx, 不会把宏过程变成宏函数
+- exitm 后跟文本项; exitm <> 返回空字符串
+- 调用时不带圆括号是语法错误
+- 对于宏过程 f, f(3) 是一个参数 (3); f(1, dd) 是俩参数 (1 和 dd); 逗号分隔参数, 圆括号无特殊意义
+- 参数不产生名字, 生成语句时按模式 2 确定参数名然后替换为传入的值, 没用上的参数是空串
+- local 让编译器生成不重复的全局名字, 生成语句时按模式 2 确定变量名然后替换为生成的全局名字, 这些名字做返回值时外面可以
+    正常使用. 比如 local t; 编译器令 t = ??0000, 生成语句时把 t, &t, t&, &t&, 替换为 ??0000
+bug: 由 if 0 里的 exitm xxx 创建的宏函数, 用来给文本宏赋值时会失败, 但不报错
+
+我把宏参数和命令行参数放一块比了比. 命令行是程序自己处理原始命令行, masm 是 masm 处理完给你, 你没有机会拿到原始字符串,
+而这个处理过程有 bug:
+1. 移除了第 1 层尖括号
+2. 莫名其妙的调用 - 收录于 bug 展览馆
+        delimiter   delimiter in arg    quote in arg    vararg                  substitution
+cmd     space       " "                 "\""            raw string              no
+masm    ,           <,>                 <!<>            cooked string (buggy)   yes
+
+p???/p187
+repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm
+repeat, while, for, forc 只能重复添加行, 不能往一行里重复添加片段
+
+p???/p190 String Directives and Predefined Functions
+- 指示的 return 有点不准确, 因为这 4 个指示取代了 textequ, =; catstr 和 textequ 是同义词
+- 指示是关键字, 不区分大小写; 宏函数是名字, 启用区分大小写时必须匹配大小写
+- instr 的第一个参数是可选参数, 若要不提供此参数, 指示是不写, 宏函数是空逗号
+- string 下标从 1 开始
+- what they didn't tell you: 宏函数版本不展开参数
+directive macro function  usage                               return      echo
+
+catstr                    string catstr <ab>, % 34            string      ab34
+          @catstr         % echo @catstr(<ab>, % 34, <???>)   string      ab34???
+
+instr                     number instr 3, <abcdabc>, <abc>    number      5
+          @instr          % echo @instr(, <abcdabc>, <abc>)   string      01
+
+sizestr                   number sizestr <abcdefg>            number      7
+          @sizestr        % echo @sizestr(<abcdefg>)          string      07
+
+substr                    string substr <abcdefg>, 3, 2       string      cd
+          @substr         % echo @substr(<abcdefg>, 3)        string      cdefg
+
+精彩集锦 - the daily wtf? masm 那些令人肃然起敬的伟大时刻
+- forc 的第二个参数不要求尖括号; 没有尖括号时使用第一个空格前的串, 忽略之后的串
+- 如果宏过程的参数里有宏函数, 从宏函数名开始找后圆括号, 找到后往前找前圆括号; 如果在函数名后面找出了一对圆括号, 圆括号
+    里的就是函数参数, 忽略函数名和前圆括号之间的字符, 调用
+
+闪现 - 这些现象我观察到过, 目前无法重现, 我会留意它们
+- 宏函数的参数不要求尖括号; 没有尖括号时, 如果在找到某个参数后的逗号前先找到了空格, 则忽略后续逗号, 整个后续参数列表删
+    除首尾空格, 作为一个参数
+- 看到过宏参数也替换成和 local 变量一样的 ??00nn 名字
+- 没给参数加尖括号时看到宏给参数前面加了 ! 符号
+
+下列编译参数可以查看宏展开的结果
+ml -EP dd.asm
+    -EP 在屏幕上打印预处理结果, 不生成 obj
+ml -Flout\ -Sa -Zs dd.asm
+    -Fl 生成清单文件, -Sa 最详细清单, -Sf 清单加入第 1 遍的结果. 难道还有第 2 遍? m510 的 .err2 可能与之有关
+
+==================== 小结: 宏名
+
+hello my name is bob! 9s 2 mee til
+    这是模式 1
+    模式 1 会产生这些信物: hello, my, name, is, bob, !, 9s, 2, mee, til
+    信物中的名字: hello, my, name, is, bob, mee, til
+
+echo hello my name is bob!
+    这是模式 1
+    首先看到了 echo, 模式 1 下看到 echo, name, title 之类的关键字后就不再往后找宏
+
+tok1&tok2 &number& "tok1&tok2 tok1&&tok2 tok1&tok2& &tok1&tok2"
+    这是模式 1, 会产生这些信物:
+    tok1, &, tok2, &, number, &, "*ignored*"
+    信物中的名字: tok1, tok2, number
+
+% tok1&tok2 &number& "tok1&tok2 tok1&&tok2 tok1&tok2& &tok1&tok2"
+    这是模式 2, 会产生这些信物:
+    tok1&, tok2, &number&, ", tok1&, tok2, tok1&, &tok2, tok1&, tok2&, &tok1&, tok2, "
+    如果信物间没有空格则展开后也没有空格
+    信物中的名字: tok1&, tok2, &number&, tok1&, tok2, tok1&, &tok2, tok1&, tok2&, &tok1&, tok2
+
+% tok1&&&&&&tok2
+    这是模式 2, 会产生这些信物: tok1&, &, &, &, &, &tok2
+
+==================== 小结: 常见编译错误
+
+A1007
+    fatal error A1007: nesting level too deep
+    经实验递归展开宏函数而不报错的次数, % 打头是 19, 否则是 18
+A2039
+    error A2039: line too long
+    经实验一行有 513+ 字符时报 A2039
+    Q155047: PRB: A2041 Initializing a Large STRUCT
+    https://jeffpar.github.io/kbarchive/kb/155/Q155047/
+A2041
+    error A2041: string or text literal too long
+    经实验 echo 后放 256 字节也报 A2041, 不仅是下面说的宏参数
+    Q137174: DOCERR: A2041 Error When Macro Parameter Length > 255 bytes
+    https://jeffpar.github.io/kbarchive/kb/137/Q137174/
+A2042
+    error A2042: statement too complex
+    经实验信物很少的时候也会报 A2042
+    masm 6.x 一行中的信物有 99+ 时报 A2042
+    Q85228: BUG: Causes of A2042 During Data Initialization
+    https://jeffpar.github.io/kbarchive/kb/085/Q85228/
+A2123
+    error A2123: text macro nesting level too deep
+    经实验没有 % 打头时在展开了 21 次后报 A2123
+    % 打头时展开了 500+ 次仍没停止, 报错行长度超过 512 才停, 仍没报 A2123; 其它实验表明 % 打头确实能触发 A2123
+
+A2042 在 masm 5.1 中是另外的错误 Q40852: FIX: A2042 May Be Caused By Using LOW and OFFSET In MASM 5.1
+
+==================== 代码演示: A1007 (nl 19+/%20+). ml -Zs dd.asm
+
+cnt = 19
+
+f macro
+    if cnt gt 0
+        cnt = cnt - 1
+        f()
+    endif
+    exitm <>
+endm
+
+f()
+
+==================== 代码演示: A2041 (256+ bytes), A2042 (99+ tokens). ml -Zs dd.asm
+
+echo \
+12345678901234567890123456789012345678901234567890\
+12345678901234567890123456789012345678901234567890\
+12345678901234567890123456789012345678901234567890\
+12345678901234567890123456789012345678901234567890\
+12345678901234567890123456789012345678901234567890\
+123456
+
+1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 \
+1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 \
+1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 \
+1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 \
+1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9
+
+==================== 代码演示: textequ. ml -EP dd.asm
+
+;                         pp = preprocess
+str1  textequ <abc>     ; pp: str1 textequ <abc>, str1 赋值
+str2  textequ str1      ; str2 的值是 str1 的值
+;                         如果 str1 未定义, error A2006: undefined symbol : str1
+;                         如果 str1 不是文本宏, error A2051: text item required
+;                         如果 str1 是宏函数但用的是 str1 而不是 str1(), error A2051: text item required
+str1  textequ <new>     ; str1 的值变了, str2 的值没变
+%str3 textequ  str2     ; pp: str3 textequ abc, 行首 % 导致展开 textequ 后的 str2
+;                         想创建 abc 的别名但 abc 未定义, error A2006: undefined symbol : abc
+str4  textequ <str2>    ; pp: str4 textequ <str2>, str4 的值是字符串 str2
+%str5 textequ <str2>    ; pp: str5 textequ <abc>, 前导 % 导致展开尖括号内的 str2
+num = 4                 ; 变量 num 的类型是整数, 值是 4
+val textequ % 3 + num   ; 变量 val 的类型是字符串, textequ 右边的 % 把其后的字符串作为表达式求值并转为字符串, val = 7
+
+==================== bug 展览馆: p???/p177, name TEXTEQU macroId | textmacro
+
+; name TEXTEQU macroId? 错误. textequ 右边只能放宏函数的调用结果即 macroId(), 不能放宏函数名
+; 宏函数的调用结果是 text item, 宏函数不是
+; ml -Zs dd.asm
+
+msg macro
+    exitm <>
+endm
+
+; error A2051: text item required
+string TEXTEQU msg
+
+==================== 代码演示: 模式 1 下何时展开文本项里的宏. ml -Zs dd.asm
+
+f macro
+    echo f called
+    exitm <+>
+endm
+
+g macro
+    exitm % 1 f() 2
+endm
+
+d textequ <*>
+
+a1 textequ <f()>        ; 没反应
+a2 textequ f()          ; f called
+a3 textequ % 3 f() 4    ; f called
+a4 textequ % 5 d 5
+
+% echo a2, a3, a4       ; +, 7, 25
+% "&g()"                ; f called ; error A2008: syntax error : 3
+
+尖括号, 不调用宏函数
+圆括号, 调用宏函数
+百分号, 调用宏函数, 展开文本宏
+没符号, 无法调用宏函数
+
+==================== 代码演示: 展开时只查找已知的宏. ml -EP dd.asm
+
+earlier textequ <later>                             ; earlier textequ <later>
+%echo earlier                                       ; echo later
+later textequ <i am "later">                        ; later textequ <i am "later">
+%echo earlier                                       ; echo i am "later"
+use_later1 textequ <"later" = insert later here>    ; use_later1 textequ <"later" = insert later here>
+%echo use_later1                                    ; echo "later" = insert i am "later" here
+%use_later2 textequ <"later" = insert later here>   ; use_later2 textequ <"later" = insert i am "later" here>
+%echo use_later2                                    ; echo "later" = insert i am "later" here
+
+==================== bug 展览馆: masm 忽略句子中自己看不懂的部分. ml -EP dd.asm
+
+f1 textequ <ddd>
+f2 textequ <cc>
+fx textequ f1<xx>f2
+
+fx ; fx 包含字符串 ddd, 没有编译警告或错误
+
+==================== bug 展览馆: masm 忽略错误. ml -Zs dd.asm
+
+; if 0 里的 exitm xxx 也能把宏过程变成宏函数
+f macro
+if 0
+    exitm <abc>
+endif
+endm
+
+; 假设此前未定义 tab. 下面这句话由于出错所以也不会定义 tab, 但 masm 没有报错
+tab textequ f()
+
+; 输出 not defined
+ifdef tab
+    echo defined
+else
+    echo not defined
+endif
+
+; 曾经在宏函数里用了 elif, 执行当然不正确, 找了好半天才发现应该用 elseif. masm 没有对 elif 报错
+
+==================== 代码演示: 隐式转换. ml -Zs dd.asm
+
+; 我注意到下列情况下代码正常执行, 文本和数字就这样比较了, 结果还正确, 应该是发生了隐式转换
+; p???/p193 IF statement evaluates numeric values or expressions
+
+cmp_num = 3
+cmp_str textequ <3>
+
+if cmp_num eq cmp_str
+    echo they eq
+else
+    echo they do not eq
+endif
+
+==================== 代码演示: 非行首的块宏. ml -EP dd.asm
+
+; error A2008: syntax error : repeat
+; 省略另外两个 A2008. 把 textequ % 换成 =, 错误一样
+repeat_line_part textequ % 1 * \
+    2 * \
+    repeat 3
+    3 * \
+    endm
+    1
+% echo repeat_line_part
+
+; 这个既然报 invalid symbol type 说明并没有当成字符串, 可能是想当行内宏处理发现不行, 就模糊的透露了名词 symbol type
+repeat_line_part_macro macro
+    repeat 3
+        3 * \
+    endm
+endm
+; error A2148: invalid symbol type in expression : repeat_line_part_macro
+repeat_line_part2 textequ % 1 * \
+    repeat_line_part_macro
+    1
+
+==================== 代码演示: 发现有 % 和无 % 的不同; 以及其它. ml -EP dd.asm
+
+; * 写这段代码时还未总结出 "展开模式", 所以言辞看着有些奇怪. 是这些实验让我总结出展开模式
+
+; 同样的递归展开自己, 错误应该也一样; 但看下面, 使用的地方不同错误就不同
+self_ref textequ <this is self_ref>
+
+self_ref            error A2123: text macro nesting level too deep
+%echo self_ref      error A2039: line too long
+                    error A2041: string or text literal too long
+
+; 说明啥? 展开宏和用 % 展开后续宏, 算两个不同操作? 执行下列代码发现真的是两个不同操作
+f textequ <d f>
+
+f       error A2123: text macro nesting level too deep
+%f      error A2039: line too long
+        error A2042: statement too complex
+
+; 增大 self_ref 文本的长度, 这回报错一样了, 只是顺序不一样
+self_ref textequ <this is self_ref it is a recursive definition echo of t>
+
+self_ref    error A2123: text macro nesting level too deep
+            error A2039: line too long
+%self_ref   error A2039: line too long
+            error A2123: text macro nesting level too deep
+
+; 下面这个展开为 echo is self_ref_2 就结束了
+self_ref_2 textequ <echo is self_ref_2>
+self_ref_2
+
+; 下面的 echo 输出 'this is self_ref_in_lazy', 引号阻止了后续的展开
+; TODO: 怎么去掉字符串两边的引号
+self_ref_in_lazy textequ <this is self_ref_in_lazy>
+%echo '&self_ref_in_lazy'
+
+; 给文本宏的值里自己名字的部分前面加 &, 又无限递归了
+self_ref_aggressive_in_lazy textequ <this is &self_ref_aggressive_in_lazy>
+; error A2039: line too long
+; error A2041: string or text literal too long
+;%echo '&self_ref_aggressive_in_lazy'
+
+==================== 代码演示: 模式 1 的 nesting level 不能大于 20. ml -EP dd.asm
+
+; error A2123: text macro nesting level too deep, 多 deep 算 too deep? 用下面代码试了试
+; 展开出了 21 个 1$. 所以 A2123 的 too deep 指的应该是 > 20
+; 这个 > 20 真 tm 熟悉, 我记得 windows api 的 winproc 也检测递归, 数量好像也是 20, 那还是我上 cn.fan 新闻组的时候
+
+self_ref textequ <1$ self_ref>
+self_ref
+
+==================== 代码演示: 模式 1 在递归时的一些观察. ml -EP dd.asm
+
+; 把 1$ 换成...
+; 1 个字符. 输出往往后跟一堆乱码, 换成 # 更是导致 dosbox 循环输出乱码
+; #$. error A2044: invalid character in file
+; 2 ~ 242 个 d. A2123 nl too deep; 即使看输出不够 21 次也报此错
+; 243 ~ 246 个 d. A2042 statement too complex; 但 self_ref textequ <ddd self_ref> 至多 6 个信物, 一堆 d 不会拆成若干 dd
+; 247+ 个 d. A2041 string too long; 247 + 空格 + self_ref = 256
+
+self_ref textequ <1$ self_ref>
+self_ref
+
+==================== 代码演示: -EP 的错误输出? 执行结果正确. ml -EP dd.asm
+
+; 发现: 第 4 行是啥 bug 玩意儿?
+
+mPer textequ <%>
+mDol textequ <$>
+mTxt textequ <abcdefg>
+m001 textequ <mTxt long-string>
+m002 textequ <mPer mTxt long-string>
+mDol <mTxt>                             ; $ <mTxt>
+mPer <mTxt>                             ; % <abcdefg>
+m001                                    ; abcdefg long-string
+m002                                    ; % mTxt long-string abcdefg long-string
+
+; 再次遇到
+
+tl textequ <!<>
+tr textequ <!>>
+ta textequ <a>
+tb textequ <b>
+ab textequ <the_name_is_ab>
+%% tl&&ta&&tb&&tr                       ; % <ab> <the_name_is_ab>
+
+于是开始专门的试验. 初步的想法是既然执行结果正确那错误输出可以忍受
+继续试验, 猛然发觉这不是 bug 输出, 这是正确的输出 + 不好看的格式; 句子前面有几个 %, -EP 就会追加几段, 这几段之间没有分
+隔符, 每一段都代表一个 % 的处理结果, 比如
+
+mPer textequ <%>
+mTxt textequ <echo>
+te00 textequ <textmacro>
+m002 textequ <mPer mTxt te00>
+
+% % % % m002
+
+ml -EP dd.asm 输出如下, 两边的引号是我加的
+" % % % % echo textmacro % % % echo textmacro  % % echo textmacro   % echo textmacro    echo textmacro    "
+
+上面的输出是好几段, 我根据 (合理的?) 猜测给它加上换行
+"% % % % m002"                  <- 这是要处理的行
+" % % % m002"                   <- 拿走行首 %
+" % % % mPer mTxt te00"         <- 展开宏 m002
+" % % % % echo textmacro"       <- 展开其余宏
+" % % % % echo textmacro"       <- output: 所有宏展开完毕, 这是第 1 遍展开的结果; 查看结果发现行首是 %, 再来一遍
+"  % % % echo textmacro"        <- 拿走行首 %, 扫描本行发现没有宏, 结束; 查看结果发现行首是 %, 再来一遍
+" % % % echo textmacro"         <- output: 第 2 遍展开的结果, 不知为啥删掉了一个行首空格
+"  % % echo textmacro"          <- output: 第 3 遍展开的结果
+"   % echo textmacro"           <- output: 第 4 遍展开的结果
+"    echo textmacro"            <- output: 第 5 遍展开的结果, 行首已经没有 %, 用模式 1 再来一遍
+"    "                          <- output: 我不知道这个空行啥意思
+
+==================== 代码演示: p???/p180, 宏过程 Scroll
+
+; p???/p177 Macro Procedures
+; : req     必填参数
+; : vararg  最后一个参数可以写 xxx:vararg 指出接受不定数量的参数, xxx = arg1, arg2, ...
+; ;;        宏里面的注释随着宏展开至源码, 如果不想往源码放, 用双分号开始注释
+; local     如果出现, 必须是宏的第一句话. local 可以修饰这些变量: numeric equation, text macro, code label
+
+Scroll MACRO distance:REQ, attrib:=<7>, tcol, trow, bcol, brow
+    IFNB <tcol> ;; Ignore arguments if blank
+        mov     cl, tcol
+    ENDIF
+    IFNB <trow>
+        mov     ch, trow
+    ENDIF
+    IFNB <bcol>
+        mov     dl, bcol
+    ENDIF
+    IFNB <brow>
+        mov     dh, brow
+    ENDIF
+    IFDIFI <attrib>, <bh> ;; Don’t move BH onto itself
+        mov     bh, attrib
+    ENDIF
+    IF distance LE 0 ;; Negative scrolls up, positive down
+        mov     ax, 0600h + (-(distance) AND 0FFh)
+    ELSE
+        mov     ax, 0700h + (distance AND 0FFh)
+    ENDIF
+
+    int     10h
+ENDM
+
+==================== 代码演示: 阶乘
+
+; 看了宏过程之后试了试阶乘, 遇到俩问题
+; 1. 没法递归展开 - % 不能展开宏过程
+; 2. 没法重复展开 - 没有看到这种语法
+; 不是说按照目前知识实现不了编译时阶乘, 是目前 "我" 实现不了, 可能别人能实现
+
+factorial1 macro n: =<3>
+    local x
+    x textequ % n * (n - 1) ;; 这里需要 n 个项, 或者计算 n 次
+    %echo factorial1 x
+endm
+
+factorial1
+
+; 本书的介绍顺序是文本宏, 宏过程, 重复块, 宏函数. 这是看了重复块后写的阶乘
+
+factorial2cnt = 6
+factorial2amt = 1
+repeat factorial2cnt
+    factorial2amt = factorial2amt * factorial2cnt
+    factorial2cnt = factorial2cnt - 1
+endm
+factorial2str textequ % factorial2amt
+% echo factorial2 factorial2str
+
+factorial2 macro n: =<6>
+    local amt, cnt, str
+    amt = 1
+    cnt = n
+    repeat cnt
+        amt = amt * cnt
+        cnt = cnt - 1
+    endm
+    str textequ % amt
+    % echo factorial2 str
+endm
+
+factorial2
+
+; fatal error A1004: out of memory
+;factorial2 "abc"
+
+; p???/p193 Returning Values with EXITM
+; 在这里看到了 factorial, 顿时觉得以后不该再写 factorial, 应该写 fibonacci 或更不常见的
+
+==================== bug 展览馆: fatal error DX1020
+
+; exitm 后跟 db, dd, ret, mov 这些 x86 指令都是这结果
+;
+; DOSXNT : fatal error DX1020: unhandled exception: Page fault;
+; contact Microsoft Support Services
+; ProcessId=3694 ThreadId=3695
+; User Registers:
+; EAX=00000000h EBX=00449D00h ECX=00000000h EDX=0005F000h
+; ESI=0004EDDBh EDI=0000101Ch EBP=0044A8D8h ErrorCode = 00000004h
+; DS=0017h ES=0017h FS=005Fh GS=0017h FLG=00003246h
+; CS:EIP=000Fh:00433C75h SS:ESP=0017h:0004EDD4h
+
+f macro
+    exitm dd
+endm
+
+f()
+
+; 不确定这是否是 dosbox 的毛病, 但只要是 x86 指令就这样, 否则不这样, 很可能是 masm 的毛病
+; 我看下面的 cause 里少了一句: or a normal masm instance running it's daily job
+;
+; https://jeffpar.github.io/kbarchive/kb/111/Q111263/
+;
+; CAUSE
+; =====
+; Unhandled exception errors can be caused by a system configuration problem such
+; as an ill-behaved device driver, a terminate-and-stay-resident (TSR) program, or
+; a memory manager that is not configured correctly for the hardware in a
+; particular machine.
+
+==================== 代码演示: p???/p192, catstr, substr
+
+; SaveRegs - Macro to generate a push instruction for each
+; register in argument list. Saves each register name in the
+; regpushed text macro.
+regpushed TEXTEQU <>                    ;; Initialize empty string
+
+SaveRegs MACRO regs:VARARG
+    LOCAL reg
+    FOR reg, <regs>                     ;; Push each register
+        push reg                        ;; and add it to the list
+        regpushed CATSTR <reg>, <,>, regpushed
+    ENDM                                ;; Strip off last comma
+    regpushed CATSTR <!<>, regpushed    ;; Mark start of list with <
+    regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )
+    regpushed CATSTR regpushed, <!>>    ;; Mark end with >
+ENDM
+
+; RestoreRegs - Macro to generate a pop instruction for registers
+; saved by the SaveRegs macro. Restores one group of registers.
+RestoreRegs MACRO
+    LOCAL reg
+    %FOR reg, regpushed                 ;; Pop each register
+        pop reg
+    ENDM
+ENDM
+
+==================== 代码演示: 实现 sizestr. ml -Zs dd.asm
+
+; 预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
+; - 把宏放在单独的环境里执行, 此时由于没有定义宏所以也不发生展开. 依靠这些语法显然实现不了这个
+; - 模式 1 有过滤, 过滤区域的参数不展开. 计算字符个数要用循环, 正好模式 1 的 forc 不展开参数
+
+$sizestr macro a
+    local cnt
+    cnt = 0
+    forc i, a
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+abc textequ <this is a long string and will surely fail both sizestr macro functions>
+
+% echo $sizestr(a<!bc><de>)     ; 5
+% echo @sizestr(a<!bc><de>)     ; 05
+% echo $sizestr(abc)            ; 3
+% echo @sizestr(abc)            ; 03
+
+; 如果要计算展开后的参数有几个 ascii 字符呢? 需要在宏内展开参数. 考虑到 forc 对待参数的逻辑, 要在参数两边加尖括号
+
+$$strlen macro a
+    local cnt
+    cnt = 0
+    % forc i, <a>
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+% echo $$strlen(abc) ; 71
+
+==================== 代码演示: p???/p193, defined
+
+DEFINED MACRO symbol:REQ
+    IFDEF symbol
+        EXITM <-1>  ;; True
+    ELSE
+        EXITM <0>   ;; False
+    ENDIF
+ENDM
+
+==================== bug 展览馆: vararg
+
+; vararg 没法用来计算参数个数
+;
+; p???/p194 Using Macro Functions with Variable-Length Parameter Lists
+; 这里计算参数个数的 @ArgCount 宏不对
+; - @ArgCount(1, <2, 3>, 4) 是 3 个参数, 它返回 4
+; - @ArgCount(<1, 2, 3, 4>) 是 1 个参数, 它返回 4
+;
+; 问题在于 vararg 参数里保存的是处理后的参数列表, 换句话说用的时候就是错的. 具名参数处理一下没啥问题, 还是能分给正确的
+; 具名参数, 变参就没法区分了
+
+@ArgCount MACRO arglist:VARARG
+    LOCAL count
+    count = 0
+    FOR arg, <arglist>
+        count = count + 1 ;; Count the arguments
+    ENDM
+    EXITM %count
+ENDM
+
+; vararg 没法用来查找第 i 个参数
+;
+; p???/p194, @ArgI
+; @ArgI 和 @ArgCount 一样的毛病; 这是 vararg 的毛病, 不知道咋解决
+; %echo @ArgI(2, dd, <<2, 3, 4>>, xf) 输出 2, 3, 4, 错误, 应该输出 <2, 3, 4>
+; %echo @ArgI(2, dd, <!<>, xf) 应该输出 <, 它报错
+;
+; 原文前两行注释 - count 和 retstr - 写反了, 已更正
+
+@ArgI MACRO index:REQ, arglist:VARARG
+    LOCAL count, retstr
+    retstr TEXTEQU <>               ;; Initialize return string
+    count = 0                       ;; Initialize count
+    FOR arg, <arglist>
+        count = count + 1
+        IF count EQ index           ;; Item is found
+            retstr TEXTEQU <arg>    ;; Set return string
+        EXITM                       ;; and exit IF
+        ENDIF
+    ENDM
+    EXITM retstr                    ;; Exit function
+ENDM
+
+==================== 代码演示: 宏过程以模式 2 确定并替换参数, 宏函数一样. ml -EP dd.asm
+
+f macro a1, a2          ; after preprocess, f <<<4 + 8>>>, sss turns to
+    t1 textequ a1       ; t1 textequ <<4 + 8>>
+    t2 textequ t1       ; t2 textequ t1
+    %t3 textequ t2      ; t3 textequ <4 + 8>
+    echo a1 t1 t2 t3    ; echo <<4 + 8>> t1 t2 t3
+    %echo a1 t1 t2 t3   ; echo <<4 + 8>> <4 + 8> <4 + 8> 4 + 8
+    <n a2>              ; <n sss>
+%   <n a2>              ; <ddd sss>
+    "&n &a2"            ; "&n sss"
+%   "&n &a2"            ; "ddd sss"
+endm
+
+n textequ <ddd>
+
+f <<<4 + 8>>>, sss
+
+==================== 代码演示: 模式 1 在调用处会展开哪些宏参数. ml -EP dd.asm
+
+; 宏参数是文本项, 文本项在模式 1 下展开宏函数 (圆括号), 不展开文本宏 (没符号)
+; 宏对待没符号的方式和 textequ 不一样. 宏认为没符号是字符串, 会在两边加尖括号; textequ 认为是文本宏名
+
+te textequ <ddff>
+
+f macro
+    exitm <this is f>
+endm
+
+mp macro a
+    <a>
+endm
+
+mf macro a
+    exitm <<a>>
+endm
+
+mp te       ; <te>
+mf(te)      ; <te>
+
+mp f()      ; <this is f>
+mf(f())     ; <this is f>
+
+==================== bug 展览馆: 宏函数的各种失败展开
+
+; * 写这段代码时还未总结出 "展开模式", 所以言辞看着有些奇怪. 是这些实验让我总结出展开模式
+
+; 有下列定义
+
+f_blank macro
+    exitm <>
+endm
+
+f_text_macro macro
+    exitm <text_macro>
+endm
+
+f_f_blank macro
+    exitm <f_blank>
+endm
+
+f_f_text_macro macro
+    exitm <f_text_macro>
+endm
+
+f_text_m macro
+    exitm <text_m>
+endm
+
+f_f_text_m macro
+    exitm <f_text_m>
+endm
+
+text_macro textequ <echo ok>
+
+; statement             expected after -EP                          reality after -EP
+text_macro              echo ok                                     same
+f_blank()                                                           same
+f_text_macro()          text_macro -> echo ok                       same
+f_f_blank()()           f_blank() ->                                error A2039: line too long
+f_f_text_macro()()      f_text_macro() -> text_macro -> echo ok     same
+f_text_m()acro          text_macro ->  echo ok                      error A2008: syntax error : text_m
+f_f_text_m()acro()      f_text_macro() -> text_macro -> echo ok     error A2008: syntax error : f_text_m
+
+上面出错的语句毫无道理. 虽然前面加上 % 就能正确执行了, 可是干嘛要多写个 %? 前面已经知道有和没有 % 是有好多差别的, 不是
+什么 "magical fix". 无论如何还是总结一下, 经实验要在不加前导 % 的时候调用返回的宏函数需满足下列条件
+- 最后一个宏函数必须返回文本宏
+- 宏名不能是拼接出来的
+
+==================== bug 展览馆: 莫名其妙的调用. ml -Zs dd.asm
+
+f macro
+    exitm <>
+endm
+
+mp macro a: vararg
+endm
+
+mp f, (876)
+
+warning A4006: to many arguments in macro call
+f(1): macro called from mp(1): macro called from dd.asm(9): main line code
+
+满足下面两个条件导致 mp f, (876) 生成 f (876)
+- 876 两边有圆括号
+- f 是之前定义的宏函数; 宏过程没问题, 因为根本不会展开非行首的宏过程
+
+如何避免这莫名其妙的调用, 下面方法任选
+- f 两边加尖括号 <f>
+- f 前加 !
+
+基于下面代码做进一步试验
+
+mp macro a
+    "in mp &a"
+endm
+f macro a, b
+    "in f  &a &b"
+    exitm <4>
+endm
+mp f,,,,d,, (15, 876)ddd
+
+发现 masm 看到宏过程 mp 的参数有宏函数 - 这里是 f - 时, 从 f 开始找后圆括号, 找到后往前找前圆括号; 如果在 f 后面找出了
+一对圆括号, 圆括号里的就是 f 的参数, 忽略 f 和前圆括号之间的字符; 调用 f, 结果作为 mp 的参数. 上面代码 -EP 报的错是
+error A2008: syntax error : in f  15 876
+error A2008: syntax error : in mp 4ddd
+
+==================== 代码演示: 前序遍历, 以及 masm 令人着急的处理能力. ml -Zs dd.asm
+
+; 如果 depth < height, 返回 3 个对自身的调用; 否则视 depth 和 height 的差值逐渐减少调用次数至 0
+;
+; f 不是递归函数, 它里面没有函数调用. f 返回调用自身的字符串, 由展开宏的 masm 去执行
+; 观察输出可以确定 masm 以前序遍历的方式展开宏; 为了构造树, 前序遍历也是唯一可行的方式
+;
+; 输出比较多, dosbox 又没有滚动条所以应该把输出重定向到文件 > fff ml -Zs dd.asm
+; 可以看到 f(4) 导致 148 次调用; 这不是 4 层 3 叉树的递归次数, 因为 f 多加了两层调用
+;
+; https://en.wikipedia.org/wiki/Tree_(data_structure)
+; root      depth = height = 0
+; level     1 + the number of edges between a node and the root, i.e. (Depth + 1)
+;
+; masm 说的 nesting level, nl, 究竟是等于树节点的 depth 还是 level, 我不想探究了
+
+f macro height, depth: =<0>, nodetype: =<root>
+    local dep1
+
+    dep1 textequ % depth + 1
+
+    % echo nl depth, nodetype
+
+    if dep1 lt height
+        exitm <f(height, dep1, branch1) f(height, dep1, branch2) f(height, dep1, branch3)>
+    elseif dep1 eq height
+        exitm <f(height, dep1, branch4) f(height, dep1, branch5)>
+    elseif dep1 - height eq 1
+        exitm <f(height, dep1, leaf)>
+    else
+        exitm <>
+    endif
+endm
+
+f(2)
+
+bug
+- 如果把 f 的名字换成很长的串, 能看到 error A2041: string or text literal too long; 意料之中, 不是 bug
+- 想象中如果 height 大于 18 能看到 error A1007: nesting level too deep, 实际上 masm 在 height = 5 时就出错了
+    用 f(19) 还能看到 error A2123: text macro nesting level too deep; nl 确实超了, 但 text macro 是哪来的?
+    是不是说, A1007 是递归调用宏函数才会出的错? A2123 是展开文本宏和宏函数都会出的错?
+- 多试几个数你能看到好几种编译错误 - 全是 masm 自己造成的
+
+思考
+上面用的是宏函数. 能不能控制文本宏的递归次数, 或者组合多个其它文本宏? 如果接受参数可能能, 但它不接受参数所以可能不能
+TODO: 证明它能或不能. 可能作为论据的事实
+- no  每次都是常量替换
+- no  既然不接受参数, 则每次替换/调用/展开都得到相同结果
+- yes 隐含的参数? 有没有? 如何实现?
+
+==================== 代码演示: 返回函数. ml -Zs dd.asm
+
+f macro a
+    ifb <a>
+        exitm <f>
+    else
+        exitm <a>
+    endif
+endm
+
+f1 macro
+    exitm <textmacro>
+endm
+
+f2 macro
+    exitm <f1>
+endm
+
+fa2039 macro
+    exitm <echo fa2039 called>
+endm
+
+textmacro textequ <echo finally>
+
+f()()()()()()()()(f1)()
+f()()()()()()()()()()()()()()()()()()(f2)()()
+fa2039()
+
+f(fa2039)()
+f()1()
+
+cat macro a
+    exitm <f&a>
+endm
+
+cat(1)()
+cat(2)()()
+
+; f(fa2039)() is not ended with text macro so error A2039: line too long    - 模式 1 撮合 bug1
+; f()1() triggers error A2008: syntax error : f, then expands to f1()       - 模式 1 不拼接原则
+
+==================== 代码演示: 多个 % 导致多次执行模式 2. ml -Zs dd.asm
+
+fc macro a
+    echo a
+    exitm <f>
+endm
+
+fz macro
+    echo z
+    exitm <>
+endm
+
+;%   fc(1)z() fz()
+;%%  fc(1)c(1)z() fc(2)z() fz()
+;%%% fc(1)c(1)c(1)z() fc(2)c(2)z() fc(3)z() fz()
+
+%   fz() fc(1)z()
+%%  fz() fc(1)z() fc(2)c(2)z()
+%%% fz() fc(1)z() fc(2)c(2)z() fc(3)c(3)c(3)z()
+
+==================== 代码演示: %exitm. ml -EP dd.asm
+
+; 在尝试按指定次数展开时我写出了如下代码, 发现不对头:
+; - 宏的第一句展开成了 echo arg = (tok
+; - 错误的行号是 if count 那句, error A2208: missing left parenthesis in expression
+; tok 前面怎么多了个左圆括号? masm 为啥报错说 if count 那句缺少左圆括号? 你能解释原因吗?
+
+expand macro token, count
+    echo arg = token
+
+    if count
+        % exitm expand(@catstr("&&token"), % count - 1)
+    else
+        % exitm <"&token">
+    endif
+endm
+
+expand (<tok>, 1)
+
+==================== bug 展览馆: error 100+. ml -Zs dd.asm
+
+; fatal error A1012: error count exceeds 100; stopping assembly
+
+expand macro token
+    echo arg = token
+    s textequ <"&">, <token>, <">
+    exitm s
+endm
+
+% "&expand (<tok>)"
+
+; masm 正确认出了定义 s 时 <"&"> 多了个后面的引号, 但反复报这个错导致错误数量超过 100
+
+==================== 代码演示: 指定展开次数. ml -Zs dd.asm
+
+; 展开模式 1 下的名字 n 次
+; 没啥实际意义, 因为展开后的信物可能包含多个信物, 而它只能展开第 1 个 (假如第 1 个确实是信物的话); 但是很好的练习材料,
+; 用来检验前面学到的知识.
+;
+; 难点 1, 展开 1 次
+;   要避免展开到死, 只能用引号创造的惰性环境在模式 2 里展开
+; 难点 2, 循环
+;   采用 % tag textequ <> 的形式时要知道 % 会把 textequ 的两边都展开, 这意味着左边的符号只能用 1 次, 赋值之后再用就变成
+;   了 值 textequ 值, 导致语法错误, 因此需要多个变量. 该怎么写不定数量变量的 local 语句? 用宏函数生成? 即使能用宏函数生
+;   成 (我怀疑不能, 因为 local 必须是宏里第一句话) 我也不想用, 因为它不是这里的重点, 所以采用递归调用
+; 难点 3, 返回
+;   基于下面两点, 不返回值而是打印值; 为了防止在 echo 里展开, 打印结果带了引号, 显然算不了正确的输出
+;   1. 不知道如何返回变量的值. 即使返回了值, 使用的地方还得留意不让值里的宏展开
+;   2. 返回变量名的话使用前需要展开一次, 更麻烦, 类似 %% "&&f(tok)"
+; 难点 4, 变量
+;   没办法取变量的值, 计算出来的值总是由某个变量指代: 字面量不是变量, 但其值只能在程序运行前指定; 百分号计算整数表达式;
+;   尖括号把变量名变成字符串, 反倒又加一层间接; 没符号没贡献; 圆括号是调用宏函数, 可这被调用的宏函数面临同样的问题
+
+expand_1st_token_n_times macro token, n: =<1>
+    local len, s1, s2
+
+    % s1 textequ <"&&token">
+    len sizestr s1
+    s1 substr s1, 2, len - 2
+
+    if n gt 1
+        %% s2 textequ <"&&&s1">
+        len sizestr s2
+        s2 substr s2, 2, len - 2
+        exitm expand_1st_token_n_times(s2, n - 1)
+    else
+        % echo "&&s1"
+        exitm <>
+    endif
+endm
+
+te1 textequ <te2 ()>
+te2 textequ <mf1>
+mf1 macro
+    exitm <return value of mf1>
+endm
+
+expand_1st_token_n_times(te1, 1) ; "te2 ()"
+expand_1st_token_n_times(te1, 2) ; "mf1 ()"
+expand_1st_token_n_times(te1, 3) ; "return value of mf1"
+expand_1st_token_n_times(te1, 4) ; "&return value of mf1"
+
+==================== 代码演示: 模式 1 展开
+
+; tm = text macro, mf = macro function
+; te1 -> f1 ()
+; tm     mf ()
+; 这种可以正常执行
+f1 macro
+    echo f1 called
+    exitm <>
+endm
+te1 textequ <f1 ()>
+te1
+
+; te2 -> tef2 () -> f2 ()
+; tm     tm         mf ()
+; f2 是第 2 遍得到的, 得到的这个串里面没有圆括号因此需要从后面的串里找
+; 撮合. masm 要求撮合的调用最终返回文本宏否则报 error A2039: line too long
+f2 macro
+    echo f2 called
+    exitm <>
+endm
+te2 textequ <tef2 ()>
+tef2 textequ <f2>
+te2
+
+; te3 -> te3a te3b -> f3 te3b *A2008* -> f3 ()
+; tm     tm   tm      mf tm
+; 撮合失败. 得到函数名 f3 后发现后面不是圆括号而是文本宏 te3b, 报 error A2008: syntax error : f3
+; 虽然会继续把第 2 个文本宏展开为 () 得到 f3 () 但由于上面的错误, 不会调用 f3
+f3 macro
+    echo f3 called
+    exitm <>
+endm
+te3 textequ <te3a te3b>
+te3a textequ <f3>
+te3b textequ <()>
+te3
+
+; A2008 究竟是何时触发的? 用下面代码做实验, ml -EP dd.asm 输出如下, 略去文本宏定义
+;     echo 2
+; dd.asm(9): error A2008: syntax error : a2008f
+; a2008f (1)
+; 看着顺序像 展开完毕 -> A2008 -> 打印展开结果
+;
+; ml -Zs dd.asm 输出如下
+; 2
+; dd.asm(9): error A2008: syntax error : a2008f
+; 看着顺序像 展开完毕 -> A2008
+;
+; 所以 A2008 应该是展开时就发现, 但展开后才报的? 如果展开后再去发现就发现不了了, 因为展开后语法是正确的
+a2008f macro a
+    echo a
+    exitm <>
+endm
+a2008t textequ <a2008l a2008r a2008f(2)>
+a2008l textequ <a2008f>
+a2008r textequ <(1)>
+a2008t
+
+; 换个形式
+f4 macro a
+    echo f4 called with a
+    exitm <z>
+endm
+te41 textequ <te4a>
+te42 textequ <te4a te4b>
+te4a textequ <f4>
+te4b textequ <()>
+z textequ <>
+
+; te41 (xxx) -> te4a (xxx) -> f4 (xxx)
+; tm   (xxx)    tm   (xxx)    mf (xxx)
+; 和 te2 一样, masm 要求撮合调用最终返回文本宏否则 A2039
+te41 (xxx)
+
+; te42 (xxx) -> te4a te4b (xxx) -> f4 te4b (xxx) *A2008* -> f4 () (xxx)
+; tm   (xxx)    tm   tm   (xxx)    mf tm   (xxx)
+; 和 te3 一样, 得到 f4 时没在后面找到圆括号, A2008
+te42 (xxx)
+
+; 无法拼接宏名, error A2008: syntax error : left, 用 -EP 发现得到了 leftright
+te6a macro
+    exitm <left>
+endm
+te6b textequ <right>
+leftright textequ <this is me>
+te6 textequ <te6a()te6b>
+te6
+
+==================== 小结: 撮合
+
+                \
+               node1
+      /     /    |    \     \
+   done  node2  ( )   raw   raw
+          /
+       node3
+        /
+       mf
+
+展开得到宏函数 mf 但没有圆括号时, 开始撮合; 顺着 mf 往上找此路径的右兄弟, 这时右边的节点都还未展开, 这个右兄弟节点必须
+是 () 否则撮合失败, error A2008: syntax error : mf. 撮合与在宏过程的参数里调用宏函数不一样, 由于 masm 伟大的逻辑, 作为
+宏过程参数的宏函数调用, 函数名和圆括号之间可以有任意字符; 而撮合要求看到的第一个非空白字符是左圆括号.
+
+展开方式是从左到右, 所以撮合往往是下边的宏函数找上边的圆括号, 宏函数最高和圆括号在同一层
+
+你要问我撮合比直接展开出带括号的函数有啥高明之处? 我也不知道.
+
+==================== 代码演示: p???/p196, opattr, @cpu, pushcontext, popcontext
+
+f macro a
+    t textequ % opattr a
+    % echo t
+endm
+
+f ax
+
+.radix 2
+cpu textequ % @cpu
+.radix 10
+
+% echo cpu
+
+IF cpu AND 00000010y
+    echo 80186 or higher
+ELSE
+    echo 8088/8086
+endif
+
+
+
+

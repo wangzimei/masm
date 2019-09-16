@@ -1,0 +1,86 @@
+
+==================== omf, coff, mz, pe
+
+https://en.wikipedia.org/wiki/Comparison_of_executable_file_formats
+
+omf
+https://en.wikipedia.org/wiki/Relocatable_Object_Module_Format
+Relocatable Object Module Format (OMF) 是对象文件的一种格式, 主要用于在 intel 80x86 上运行的软件
+源于 intel 开发的[when?] Object Module Format, dos 用户熟悉的 .obj 文件就是此格式
+MS-DOS, 16-bit Windows, 16/32-bit OS/2 上最重要的对象文件格式
+
+masm 6.11 生成 obj 默认 omf, 可以用 -coff 选项生成 coff
+
+coff
+https://en.wikipedia.org/wiki/COFF
+Common Object File Format (COFF) 是 executable, object code, and shared library 的格式, 用于 Unix 系统
+in Unix System V, replaced a.out format
+base of XCOFF and ECOFF
+being largely replaced by ELF introduced with SVR4
+coff 及其变种继续用在一些 Unix-like 系统, Microsoft Windows (PE Format), EFI 环境和一些嵌入式开发系统
+
+masm 14 生成 obj 默认 coff, -coff 和 -omf 选项生成对应格式的 obj
+
+mz
+https://en.wikipedia.org/wiki/DOS_MZ_executable
+dos 的 exe 文件格式, 开头的两个字节是 4D 5A, ascii M Z
+
+是 16 位 exe, 比 com 格式新
+
+pe
+https://en.wikipedia.org/wiki/Portable_Executable
+Portable Executable (PE) 格式是 executables, object code, DLLs, FON Font 等文件的格式, 用于 32/64 位 windows
+
+https://blog.kowalczyk.info/articles/pefileformat.html
+为兼容 msdos 和旧版 windows, pe 保留 mz 头
+
+类比名字, pe 应该是 pef, 就像 omf, coff
+类比系统, elf in Linux and most other versions of Unix; Mach-O in macOS and iOS
+
+pe 的 mz 头后面是个 16 位 dos 存根程序, 一般显示:
+(Borland tlink32)   This program must be run under Win32.
+(ms link?)          This program cannot be run in DOS mode.
+(???)               This program requires Microsoft Windows.
+
+pe 的 dos 存根
+https://thestarman.pcministry.com/asm/debug/DOSstub.htm
+
+==================== com file
+
+https://en.wikipedia.org/wiki/COM_file
+
+Digital Equipment operating systems, 1970s
+.COM was used as a filename extension for text files containing commands to be
+issued to the operating system (similar to a batch file)
+
+cp/m
+executable
+
+dos
+executable
+
+max size = 65,280 (FF00h) bytes (256 bytes short of 64 KB)
+stores all its code and data in one segment
+entry point is fixed at 0100h
+
+com 文件在执行时可以通过动态链接等技术, 任意使用内存; 当然 exe 文件也可以.
+
+dos 和 cp/m 的 com 文件结构虽然一样但互不兼容. dos 文件包含的是 x86 指令和 dos 系统调用;
+cp/m 文件包含 8080 指令和 cp/m 系统调用, 特定于机器的程序可能还会有 8085, Z80 指令
+
+fat binary
+https://en.wikipedia.org/wiki/Fat_binary
+基本上是把多个功能一样的程序放到一个文件里, 开头的代码选择使用其中一个
+开头的代码即入口代码, 是在几个系统中都有效但功能不同的指令, 在不同的系统中执行有不同的效果, 比如
+C3h, 03h, 01h
+x86     ret
+8080    JP 103h
+
+bat 文件可能使用命令的全名, win nt 为兼容这些 bat, 下列 exe 文件仍以 .com 结尾
+DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE
+作为 exe, 它们的文件开始俩字节是 MZ, 操作系统能认出来并按 exe 执行
+
+执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo, 找 foo.com 或 foo.exe
+win nt 环境变量 PATHEXT 可以指定扩展名顺序, 默认仍然是 com 先于 exe
+
+

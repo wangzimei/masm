@@ -1,0 +1,206 @@
+
+https://thestarman.pcministry.com/asm/debug/debug.htm
+这网站内容很多, 是个好网站; 也有几处讲的不清楚的地方
+
+dos 4-  debug.com
+dos 5+  debug.exe
+never officially revised since 2.40
+
+debug 用于调试 com 文件
+debug 输入输出的数字都是 16 进制, 不带前后缀, 忽略 h 后缀
+
+加载 com 时, bx-cx = 程序长度/要写入的文件的字节数, 0-0 if no file; sp = fffe
+
+该网页强调, on 80486+
+Loading the SS register with a MOV instruction inhibits all interrupts until after the execution of the next instruction
+
+问题
+- 看到 f 200 l100 "Hello!" 的写法, 从这网站愣是找不到 range 里的 l 啥意思 - 后来找到了, 那时已从其他地方知道 l 的意思了, 长度
+- 重定向比如 <8086\abc\fd1 debug 导致 dosbox 卡死
+    https://stackoverflow.com/questions/36230551/dosbox-debug-exe-reads-file-processes-commands-incorrectly
+    这里说要么用 debug.com, freedos 里有; 要么把文件的换行转为 \r; 我试了 \n, \r\n, \r 均卡死
+    观察到用 fd1cr 做输入时 debug 能输出几行, 我想文本短点会是啥情况? 试了试短的 fd2cr, 里面就 1 个 q, 没卡死
+    之所以要用重定向是因为在看下面页面的 enter 部分时, 要输入的实在太多, dosbox 又不支持拷贝粘贴
+    https://thestarman.pcministry.com/asm/debug/debug2.htm
+
+-?
+assemble    A [address]
+compare     C range address
+dump        D [range]
+enter       E address [list]
+fill        F range list
+go          G [=address] [addresses]
+hex         H value1 value2
+input       I port
+load        L [address] [drive] [firstsector] [number]
+move        M range address
+name        N [pathname] [arglist]
+output      O port byte
+proceed     P [=address] [number]
+quit        Q
+register    R [register]
+search      S range list
+trace       T [=address] [number]
+unassemble  U [range] 
+write       W [address] [drive] [firstsector] [number]
+
+address     112233, 2244:112233, ds:123
+range       addr1 addr2, addr1 l nnn, addr1 lnnn
+
+https://thestarman.pcministry.com/asm/debug/DOSstub.htm
+
+Whenever the DOS EXEC function is called to examine a file
+(anytime you load an .EXE or .COM program into DEBUG 2.0+ for example)
+说明 debug 调用了 dos 的 exec 函数?
+
+debug 加载 com 和 exe 时, 使用 dos 的 exec 函数, exec 检查文件头,
+结果是: 文件以 MZ 开始的, 加载到内存 0; 其它加载到 100h
+至于加载 com 和 exe 之外的文件用的是啥方法, 这里没说
+
+记得其他页面说过 debug 按扩展名确定文件类型, 给了例子修改 com 的扩展名后 debug 不执行它了
+
+http://www.armory.com/~rstevew/Public/Tutor/Debug/debug-manual.html
+
+debug file = debug, -n file, -l
+
+d - Dump can be used to display up to 64K bytes of data, with one restriction:
+It cannot cross a segment boundary.
+
+D 0 l 0         显示整个 64k 的内容, 第 2 个 0 表示 1 0000
+Cntl-NumLock    暂停显示
+Cntl-Break      停止显示返回 debug
+
+e - enter, 两种模式
+- Display/Modify    输入地址后回车, 然后再输数据
+- Replace           一次性输完, 很像 db 语句
+
+f - fill, 语法类似 e, 作用类似 memset
+
+a - Assemble 部分列出的 masm 和 debug 的语法差异, 看起来非常陌生
+
+w - Write 和 l - load 很像, 两种模式: 1 文件, 2 磁盘节
+不能写 .EXE, .HEX 文件, 想修改它们的话先重命名
+
+g - go, 开始后不能用 Cntl-break 暂停
+
+
+
+cv.exe - microsoft code view 4.01
+窗口菜单里前面有圆点的表示当前窗口, 可以关闭
+
+==================== 用 debug 执行代码
+
+https://stackoverflow.com/questions/12263720/what-would-happen-if-the-cs-segment-register-is-changed-and-how-would-you-do-s
+jmp 0xF000:0xFFF0 sets cs to 0xF000 and ip to 0xFFF0, which is the start address of BIOS code, and thus reboots the computer. 
+
+下面是重启, dosbox 中是关闭窗口. - 和 0741:0100 是 debug 的提示, 无需输入
+
+debug
+-a 100
+0741:0100 jmp f000:fff0
+0741:0105
+-g
+
+==================== 用 debug 生成 com 文件
+
+https://jakash3.wordpress.com/2009/10/22/debug-exe-is-my-assembler/
+
+-h          计算文件长度
+-r cx       把长度写到 cx
+-n xx.com   指定文件名
+-w          写入磁盘
+-q          退出
+
+如果要写类似下面的代码
+
+mov dx, 10A ; 问题: 假设字符串的偏移是 10ah, 如何得到这个值?
+mov ah, 9
+int 21
+int 20
+db "Hello World!$"
+
+debug 不支持标号, 要打印作为数据的字符串, 代码有两种安排方式...
+1. 数据, 代码; - 不对! 必须以代码开头. 即使想靠前放置数据, 也需要在数据前放个 jmp 跳过数据, 此时要计算数据的长度
+2. 代码, 数据; 此时要计算代码长度, 以得到字符串的偏移
+既然方式 1 仍以代码开头, 那方式 1 和 2 实际一样; 不存在两种方式, 只存在一种 - 代码, 数据
+
+方式 1 既麻烦又没优点, 实际编程中不大可能会用, 基本没啥出场机会, 正好符合练习题的特征, 下面就写它
+方式 1: 先在 debug 里计算串长度和跳转距离, 再写程序. 
+重申: com 文件固定从偏移 100h 开始执行, 这个地方必须是有意义的代码否则执行结果肯定不正确
+
+debug
+-a 100
+0741:0100 db "hello world!$"
+0741:010D jmp 100 ; 从这里跳到开头和呆会儿的从开头跳到这里一样
+0741:010F
+
+这就知道了 jmp 要跳到 10fh, 从头开始写程序
+-a 100
+0741:0100 jmp 10f
+0741:0102 db "hello world!$" ; 这一句 db 必须原样照抄, 否则前面白写了
+0741:010F mov dx, 102 ; 从上一句话知道串偏移是 102h
+0741:0112 mov ah, 9
+0741:0114 int 21
+0741:0116 int 20
+0741:0118
+不要用 -g 直接执行, 否则 debug 执行到 int 20h 时 cs 是这里的 cs 不是 debug 的 cs, dosbox 死机
+从上面知道文件长度是 18h, 无需用 -h 计算
+-r cx
+CX 0000
+:18
+-n out\xx.com
+-w
+Writing 00018 bytes
+-q
+
+==================== debug.exe in the wild
+
+看到网上有各种不拘小节的随性写法, 对初学 debug.exe 的我很有启发 (第一次用应该是 2002 年初, 大 2, 所以算 "再次初学"?)
+
+http://cgts.relativesystems.com/lessons/80x86%20assembler/qb001.html
+把字符串放在很靠后的位置, 文件大小给个大致值
+- f 200 l100 "xxx" 把 200h ~ 2ffh 共 100h 字节的长度填充为 xxx
+
+a 100
+mov ah,9
+mov dx,200
+int 21 ; int21h/ah9
+mov ah,0
+int 16 ; int16h/ah0 - waiting for a keypress
+mov ah,0
+int 21 ; int21h/ah0 = int20h
+f 200 l100 "Hello!  This is my first assembly language program!$"
+n First.com
+r cx
+200
+w
+
+http://www.intel-assembler.it/portale/5/Write-an-assembly-program-using-DEBUG/Write-an-assembly-program-using-DEBUG.asp
+这个应该是典型的 "代码, 数据" 安排方式
+- 原文没有回去修改 dx 的步骤, 前面写着 mov dx, 200, 后面就变成 mov dx, 109 了
+- 由于要看 debug 的提示来计算偏移, 我保留了提示
+- 一开始地址是 100h, a 无需带参数
+- 用 e 往内存写数值
+- r 和 n 无需同参数间留空格
+
+-a
+0741:0100 mov ah, 9
+0741:0102 mov dx, 200   ; 任给一个值比如 200h, 一会要回来改
+0741:0105 int 21
+0741:0107 int 20
+0741:0109
+-e ds:109 'ciao$'       ; 用 e 写字符串, 自己计算程序长度; 相当于不结束前面的 a 并用 db 写字节
+-a 102                  ; 重写前面任给 dx 的值, 需确保这个修改不影响该语句的长度
+0741:0102 mov dx, 109
+0741:0105
+-rcx
+CX 0000
+:e
+-ntest.com
+-w
+Writing 0000E bytes
+-q
+
+
+
+
