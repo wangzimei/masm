@@ -5,7 +5,7 @@
 - 确保已经安装了 masm, 在命令行输入 ml 回车以确认
 - 在命令行 cd 到本项目目录, 比如 c:\code\masm
 - 在此目录新建文件 dd.msm
-- 把后面的代码粘贴到 dd.msm 里, 在命令行用 ml -Zs dd.msm 运行
+- 把下面的代码粘贴到 dd.msm 里, 在命令行用 ml -Zs dd.msm 运行
 
 **输出文本**
 
@@ -94,7 +94,7 @@ end
 ```
 if @version le 611
 
-start   textequ <main>
+start   textequ <abc>
 
 xxx     segment stack
 start:
@@ -113,12 +113,11 @@ xxx     ends
 else
 
 start   textequ <_main>
-        
-xxx     segment flat "code"
+
+_TEXT   segment flat
 start:
 
-includelib      kernel32.lib
-
+        includelib kernel32.lib
 GetStdHandle    proto near32 stdcall :dword
 WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
 
@@ -135,7 +134,7 @@ WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
         call    WriteConsoleA
 
         ret
-xxx     ends
+_TEXT   ends
 
 data    segment flat
 s       byte    "32 bit program compiled with masm > 611"
@@ -801,7 +800,7 @@ end
 `ml -EP dd.msm` 显示预处理结果
 
 ```
-    ??0000 textequ % 3 * (3 - 1) 
+    ??0000 textequ % 3 * (3 - 1)
 echo factorial1 6
 end
 ```

@@ -26,7 +26,7 @@
 ; - win32 的 printf 的 %d 是 32 位的，所以用 cbw 扩展为 word 后还要用 cwde 扩展为 dword，然后 push eax
 ; - 为了保存 flat 下的 offset，mov ax, offset string_1 改为 mov eax, offset string_1
 ; - 既然一些 ax 改成了 eax，call 之前 push 了 5 次、前 2 次是 push word ptr，那么 call 之后的 add sp, 0ah 要改为 add sp, 10h
-; - LNK2019 _mainCRTStartup - includelib msvcrt.lib - _mainCRTStartup 调用 main，所以不要在 end 后面跟标号
+; - LNK2019 _mainCRTStartup - includelib msvcrt.lib - _mainCRTStartup 调用 main，所以不要在 end 后面跟标签
 ; - LNK2019 _printf - vs2015 修改了 c 运行时，一些函数放在了 legacy_stdio_definitions.lib 和 legacy_stdio_wide_specifiers.lib
 ;   http://stackoverflow.com/questions/33721059/call-c-standard-library-function-from-asm-in-visual-studio
 ; - 稍微调整了空白

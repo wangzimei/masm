@@ -3,7 +3,7 @@
 ;
 ; 这是该页的第 2 个例子，详细解释见 proto-and-invoke-1，修改之处
 ; - .MODEL small 改为 .MODEL flat
-; - LNK2019 _mainCRTStartup - includelib msvcrt.lib - _mainCRTStartup 调用 main，所以不要在 end 后面跟标号
+; - LNK2019 _mainCRTStartup - includelib msvcrt.lib - _mainCRTStartup 调用 main，所以不要在 end 后面跟标签
 ; - LNK2019 _printf - vs2015 修改了 c 运行时，一些函数放在了 legacy_stdio_definitions.lib 和 legacy_stdio_wide_specifiers.lib
 ; - 稍微调整了空白
 

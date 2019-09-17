@@ -15,7 +15,7 @@ start:
         mov     ax, var + 100h
         mov     bx, arr[100h]
 
-; 下面这句使用代码标号, masm 不会给代码标号加方括号; 并且由于代码标号默认段是 cs, 所以 masm 也没有加寄存器重写
+; 下面这句使用代码标签, masm 不会给代码标签加方括号; 并且由于代码标签默认段是 cs, 所以 masm 也没有加寄存器重写
         mov     dx, data[100h]
 
         mov     ah, 9
