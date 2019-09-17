@@ -68,7 +68,7 @@ endm
 end
 ```
 
-**计算字符串长度**
+**输出字符串长度**
 
 从命令行用 -D 传入字符串变量 s, 比如 `ml -D s="how would you count this?" -Zs dd.msm`
 
@@ -89,10 +89,10 @@ end
 
 **输出 masm 程序**
 
-因为这次的宏用来产生源代码, 所以无需使用 -Zs. 用 `ml dd.msm` 生成 dd.exe, 然后 `dd` 运行它.
+用 `ml dd.msm` 生成 dd.exe, 然后 `dd` 运行它.
 
 ```
-if @version lt 615
+if @version le 611
 
 start   textequ <main>
 
@@ -107,7 +107,7 @@ start:
         mov     ax, 4c00h
         int     21h
 
-s       byte    "16 bit program compiled with masm < 615$", 16 dup (?)
+s       byte    "16 bit program compiled with masm 611-$", 16 dup (?)
 xxx     ends
 
 else
@@ -125,11 +125,11 @@ WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
         push    -11 ; -11 = STD_OUTPUT_HANDLE
         call    GetStdHandle ; sets eax on return
 
-; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved
-; push backwards
+; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite,
+; LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved. push backwards
         push    0
         push    offset dwd
-        push    sizeof s - 1
+        push    sizeof s
         push    offset s
         push    eax
         call    WriteConsoleA
@@ -138,7 +138,7 @@ WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
 xxx     ends
 
 data    segment flat
-s       byte    "32 bit program compiled with masm 615+", 0
+s       byte    "32 bit program compiled with masm > 611"
 dwd     dword   ?
 data    ends
 
@@ -1900,6 +1900,6 @@ end
 - (太费解) 删除令人费解的名词比如把 token 翻译为信物; 用 A.D. 表示公元后; css 术语 inline, block, inline-block
 - (太吓人) 删除对续行的描述
 - (太抽象) 重新把示例代码混入介绍, 早先是把这俩分开了; 在靠前位置添加 hello world; 考虑本条目的做法之后, 在开头添加速成课
-- (太分神) 进一步减少对 610guide (Microsoft MASM 6.1 Programmer's Guide) 的引用
+- (太误导) 明确对 610guide (Microsoft MASM 6.1 Programmer's Guide) 的引用: 用 "610guide" 代替 "本书"
 
 

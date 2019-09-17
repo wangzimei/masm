@@ -1,0 +1,29 @@
+
+diff on use32, flat
+https://stackoverflow.com/questions/45124341/effects-of-the-flat-operand-to-the-segment-directive
+
+
+
+http://masm32.com/board/index.php?topic=602.0
+
+XYZ SEGMENT PAGE
+	
+	sz db "Hello World",13,10,0
+	
+XYZ ENDS
+_TEXT SEGMENT ; this is MASM's .code-Segment
+	
+	main proc
+		
+		print OFFSET sz
+		inkey
+		exit
+		
+	main endp
+	
+_TEXT ENDS
+end main
+
+.code expands to "_TEXT segment public"
+.data expands to "_DATA segment public"
+

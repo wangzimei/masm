@@ -1,0 +1,65 @@
+
+; https://stackoverflow.com/questions/47941699/using-32-bit-registers-in-masm-without-changing-the-default-segment-definition-s
+; 下列程序把屏幕设置为粉红, 按 esc 退出
+; 他说 bug 是使用 .386 后在 dosbox 里死机. 我试了试, 无论是否有 .386 都正常运行
+; 答案 1 提到在段后加 use16, 难道是 masm 6.11 默认 use16, 他的编译器默认 use32?
+; 答案 2 提到 .386 导致 type of (其后的 stack segment alignment) = DWORD, not WORD 
+
+;.MODEL SMALL
+;.386
+
+theStack    SEGMENT STACK
+        db      64 dup ('THESTACK')
+theStack    ENDS
+
+varData SEGMENT PUBLIC
+        PUBLIC  fCntr
+        fCntr   db 0    ; A frame counter used to delay animations.
+varData ENDS
+
+code    SEGMENT PUBLIC
+
+assume  cs: code, ds: varData
+
+main    PROC
+        mov     ax, varData
+        mov     ds, ax                  ; Load the variable segment into ds
+        cld                             ; ensure that string ops auto-increment
+
+        xor     ah, ah                  ; select set video mode function
+        mov     al, 13h                 ; 320x200 256 colors
+        int     10h                     ; video mode set
+
+        mov     di, 0a000h
+        mov     es, di
+        xor     di, di                  ; es:di -> vga pixel buffer
+        mov     ah, 64d
+        mov     al, ah                  ; ah & al -> pink color index byte
+        mov     cx, 32000d              ; writing 32,000 words
+        rep     stosw                   ; fill the screen with pink pixels
+
+ESC_LOOP:
+        in      al, 60h
+        cmp     al, 1
+        jne     ESC_LOOP                ; delay till escape key is pressed
+
+        mov     ax, 40h
+        mov     es, ax                  ; access keyboard data area via segment 40h
+        mov     WORD PTR es:[1ah], 1eh  ; set the kbd buff head to start of buff
+        mov     WORD PTR es:[1ch], 1eh  ; set the kbd buff tail to same as buff head
+
+; now the keyboard buffer is cleared.
+        xor     ah, ah                  ; select video mode function
+        mov     al, 3                   ; select 80x25 16 colors
+        int     10h                     ; restore VIDEO back to text mode
+
+
+
+
+        mov     ah, 4ch                 ; Terminate process DOS service
+        xor     al, al                  ; Pass 0 to ERRORLEVEL
+        int     21h                     ; Control returns to DOS
+
+main    ENDP
+code    ENDS
+        END main
