@@ -1,5 +1,5 @@
 
-; ml -Foout\ 8086/610guide/ch05.asm -Feout\
+; ml -Foout\ 8086/610guide/ch05.msm -Feout\
 
 xxx segment
 

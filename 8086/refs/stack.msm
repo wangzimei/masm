@@ -7,7 +7,7 @@
 ; com 执行时, 开始栈顶是 fffe, push 一个 16 位值后栈顶变为 fffc
 ; fffc, fffd, fffe, ffff 总共是 4 个字节但是只使用了两个字节
 ;
-; ml -Dcom -Foout\ 8086/hello/stack.asm -Feout\
+; ml -Dcom -Foout\ 8086/refs/stack.msm -Feout\
 ;
 ; debug out\stack.com
 ; r, 看到列出的寄存器里 sp = fffe
@@ -23,7 +23,7 @@
 ;   1e 和 1f 应该是在运行的时候从 77 修改成 ff 的.
 ; - 不修饰 stack 段, 这需要自己调整 ss:sp: 此时 stack 段是 20h 个 77, 最后两字节未被修改
 ;
-; ml -Foout\ 8086/hello/stack.asm -Feout\
+; ml -Foout\ 8086/refs/stack.msm -Feout\
 ;
 ; debug out\stack.exe
 ; r, 有 ss = 076f, sp = 0020

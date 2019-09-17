@@ -1,5 +1,5 @@
 
-; ml -Zs 8086/610guide/ch01.asm
+; ml -Zs 8086/610guide/ch01.msm
 
 ; p???/p14  ch1/Language Components of MASM/Identifiers
 ; 247- chars
@@ -77,7 +77,7 @@ end
 ; done: *尝试* 用 echo 在汇编时打印数字
 ; 目前是调用 c 库函数 printf, 32 位代码
 ;
-; ml -Foout/ 8086/610guide/ch01.asm -Feout/
+; ml -Foout/ 8086/610guide/ch01.msm -Feout/
 
 includelib msvcrt.lib
 includelib legacy_stdio_definitions.lib
