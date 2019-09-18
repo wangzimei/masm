@@ -1,20 +1,11 @@
 
 
-? 为什么很多汇编代码的关键字都是大写?
-! 汇编时代的文本编辑器没有语法高亮
-- 键盘没有小写按键的时期
-- masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
-
-==================== 目录
-
 8086        16 位实模式, dos
 cmdln       masm 命令行
 copy        抄来的东西
 iaie        intel 指令扩展
 out         生成的文件
 x64         保护模式, ring3, windows
-dd.msm      文本文件里的代码放到这个文件里执行
-dd.masm     用法同上, 执行 32/64 位代码. 这俩文件都未上传, 需要自己创建
 learn       masm 概述
 macros      masm 的宏
 think       一些思考
@@ -24,6 +15,13 @@ x86/x64 protected mode ring0                            驱动程序?
 8086/x86/x64 without os                                 如何编译是个问题, 在另外的系统里编译?
 intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
 gpu assembly programming                                masm 显然编译不了
+
+==================== faq
+
+? 为什么很多汇编代码的关键字都是大写?
+! 汇编时代的文本编辑器没有语法高亮
+- 键盘没有小写按键的时期
+- masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
 
 ==================== 在 64 位 windows 10 上写汇编程序
 

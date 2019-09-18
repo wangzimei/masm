@@ -3,7 +3,7 @@
     - [end 的两个作用](#end-的两个作用)
     - [非空的段](#非空的段)
 - [masm 命令行](#masm-命令行)
-    - [文件编码](#文件编码)
+    - [源文件编码](#源文件编码)
     - [命令行选项](#命令行选项)
 - [masm 语法](#masm-语法)
     - [段](#段)
@@ -150,7 +150,7 @@ xxx     ends
 
 ## masm 命令行
 
-### 文件编码
+### 源文件编码
 
 masm 的 source-charset 固定为 ascii; 串原样放入二进制, 相当于 execution-charset = source-charset;
 无需转义字符, 因为指定字符时既可以用字面量也可以用数字, 字符字面量就是其 ascii 值.
@@ -328,11 +328,12 @@ cast       | explicit type conversion, may be a re-interpretation of a bit-patte
 
 fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
 
+> http://masm32.com/board/index.php?topic=3114.0 wjr April 15, 2014, 07:06:37 AM <br>
 If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
 should be 0x0006 IMAGE_REL_I386_DIR32), then you should be able to see at least one of these in the
 IMAGE_RELOCATION records. The symbol name and RVA are also displayed which should help narrow things down.
-wjr April 15, 2014, 07:06:37 AM
-http://masm32.com/board/index.php?topic=3114.0
+
+
 
 ## x86
 
@@ -643,7 +644,7 @@ link 需要 -subsystem, 没有指定时尝试从入口标签推导它, 规则是
 **节属性**
 
 - link 认识段名 _TEXT 和具有 "code" 类的段, 对应的节的属性是可执行-只读
-- link 认识段名 _DATA, _DATA 和 link 不认识的段对应的节的属性是不可执行-可写
+- link 认识段名 _DATA, _DATA 和 link 不认识的段对应的节的属性是不可执行-读写
 - editbin 可以修改节的属性
 
 > http://masm32.com/board/index.php?topic=602.15 sinsi August 22, 2012, 06:36:17 PM<br>
