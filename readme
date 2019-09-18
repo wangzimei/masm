@@ -1,56 +1,23 @@
 
-; 仅语法检查
-; -Zs 作用于其后的所有文件
-; ml -Zs readme
-; ml64 -Zs readme
-;
-; 仅汇编, 生成 obj
-; -c 作用于所有文件, 因此位置随意
-; ml -Foout/ readme -c
-; ml64 -Foout/ readme -c
-;
-; 查看生成的 obj
-; # powershell
-; format-hex out/readme.obj
-; # macos 常用 hexdump, od, xxd
-; xxd out/readme.obj
-; 
-; 连接不了. link 要求显式指定入口点, 没有默认值
-; ml -Foout/ readme -Feout/
-; LINK : fatal error LNK1561: 必须定义入口点
 
-COMMENT ^               The assembler
-                        ignores this text
-^       mov     ax, 1   and this code
-
-end
-
-汇编语言没有标准语法, 语法都是汇编器规定的
-
-masm 要求源文件的非注释部分必须有 end, 忽略其后的文本
-
-masm 的 source-charset 固定为 ascii, 串原样放入二进制, 相当于 execution-charset = source-charset
-无需转义字符, 因为指定字符时既可以用字面量也可以用数字, 字符字面量就是其 ascii 值
-
-==================== 常问问题
-
-? 为什么我看很多汇编代码的关键字都是大写?
-! 汇编时代的文本编辑器没有语法高亮, so... 人工高亮. 笑看历史 - 当时大家可是认真的
-
-? 为什么这些文本里有些地方是英语?
-! 往往是为了对齐多个行中的后面部分, 很多字体的中文宽度不是英文宽度的整数倍, 有汉字时后面对不齐
+? 为什么很多汇编代码的关键字都是大写?
+! 汇编时代的文本编辑器没有语法高亮
+- 键盘没有小写按键的时期
+- masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
 
 ==================== 目录
 
 8086        16 位实模式, dos
 cmdln       masm 命令行
+copy        抄来的东西
 iaie        intel 指令扩展
 out         生成的文件
 x64         保护模式, ring3, windows
-x86         同上. 这两种编程基本都是调用 os api 或 c 标准库, 不如 c 方便
 dd.msm      文本文件里的代码放到这个文件里执行
 dd.masm     用法同上, 执行 32/64 位代码. 这俩文件都未上传, 需要自己创建
-macros.md   masm 的宏
+learn       masm 概述
+macros      masm 的宏
+think       一些思考
 
 欠缺的内容
 x86/x64 protected mode ring0                            驱动程序?
@@ -75,210 +42,7 @@ masm 的关键字分两种
 com 文件没有文件头, 入口地址固定是 100h; - 有些 com 是 exe 改了扩展名
 exe 文件头记录连接器生成的入口地址, 连接器依据: 源文件中 end 指出的标签; link -entry 指出的标签; 第 1 条指令
 
-==================== intel 的毛病
 
-1. 错误的名称
-mov 其实是 copy/set
-
-2. 多余的逗号
-mov a, b 里面那个逗号是干嘛使的?
-- 为了支持 mov a, offset b? 那 mov a offset b 有歧义吗?
-- 为了支持 mov a, max b, c? 那 mov a max b  c 有歧义吗?
-- max 参数个数不固定? 那有没有逗号有区别吗?
-
-3. 寄存器
-说起来容易做起来难: 寄存器就不该存在
-
-以我的理解 von Neumann 1946 说的计算机的的存储部分就是内存, 包括寄存器, 缓存, 内存, 磁盘等; 按数组使用
-intel 的寄存器是内存, 但从命名到操作都不像数组, 各种专用寄存器. 这里肯定有 "硬件限制" 的因素, 比如
-- 地址线决定地址空间容纳不下那么多外设
-- 地址映射需要执行时间 - 其实还是有地址翻译
-- 不想添加指令转换模块 - 后来还是有了微指令; 我能理解 "后来毕竟是后来, 发展有过程"
-
-3.1. 用 ax, bx, cx 而不用 reg1, r2, r3
-3.2. 指令隐含使用寄存器. 可能因为, 比如 loop, 硬件少, 提供不了专用寄存器, 又不想加一条指定使用哪个通用寄存器的语句
-    不过到底啥是隐含使用我现在有点动摇了. 说 loop 隐含使用是因为那行语句里看不到 cx, 但类似 jz 这种, 算隐含使用 zf 吗?
-    只要把操作数放到那行语句里, 不管是放名字里还是放参数里, 都不是隐含使用吗?
-3.3. x87, 扩展指令, 几乎就是独立的 cpu, "胶水双核" 在那个年代就开始搞了; 每个扩展都多出一套专用寄存器
-3.4. 从 x87 开始有从名字转向数字的趋势, st0 ~ st7; 从 avx512 开始有合并寄存器的趋势, simd 也可以操作通用寄存器
-
-4. 对齐
-这东西也不是经常遇到; 但最好是别露出来, 让人根本遇不到
-
-==================== intel 指令的等价表示
-
-由于 intel 的限制, 等号后的代码不一定能执行, 只起解释作用
-
-intel 不允许 ip/eip/rip 做为指令的操作数, 指令寄存器通过 jmp, call, ret 间接修改, 下面有读取的例子
-arm32 允许读写 ip, arm64 不允许
-8086, 8088 允许 pop cs, opcode 0x0F
-
-https://www.keycdn.com/support/http-equiv
-HTTP response header equivalent, http-equiv = treat this meta as if it were in http response header
-
-https://stackoverflow.com/questions/4292447/does-ret-instruction-cause-esp-register-added-by-4
-
-retn = pop eip
-retf = pop eip/pop cs
-
-to avoid add esp, 4, you can use mov eax, [esp]/jmp eax
-
-jmp rel_offet       = add eip, rel_offet
-jmp absolute_offset = mov eip, absolute_offset
-
-pop register = mov register, [esp]/add esp, 4
-
-https://stackoverflow.com/questions/46714626/does-it-matter-where-the-ret-instruction-is-called-in-a-procedure-in-x86-assembl
-
-; slow alternative to "jmp label"
-jmp continue_there_address =
-    push continue_there_address
-    ret
-    continue_there_address:
-
-https://stackoverflow.com/questions/8333413/why-cant-you-set-the-instruction-pointer-directly
-
-call get_eip
-    get_eip:
-pop eax ; eax now contains the address of this instruction
-
-==================== masm 的毛病
-
-虎头蛇尾的 comment 语句. 本来自定义括号是非常好的功能, 想想 c++ 原始串字面量和 form data multipart delimiter,
-结果它给做成只能是一个字符. 我这决不是以现在的眼光看古人, 这当时就应该做到, 他也算不上古人
-comment 开始和结束所在的整行都算注释, 这也体现了 masm 的一个特点: 处理单元是行
-
-怎么 echo 分号?
-
-宏的变参 vararg 保存的是处理过的参数, 意味着 <1, 2, 3> 用具名参数接收时是 1 个参数, 用 vararg 参数接收时是 3 个
-
-==================== masm 命令行
-
-(写这里时发现 dosbox 中命令超过一行而换行后, 没法把光标移回到上一行)
-
-对单个文件生效的开关必须规定个位置否则 file1 -xxx file2 不确定 -xxx 作用于谁
-
-masm 规定
-- 对单个文件生效的开关放文件前
-- 命令行开关和文件名都可以用引号括起来
-- 双引号内 "" = "
-- 以 - 打头的 token 是命令行开关; 因此编译文件 -coff 要写成类似 ml ./-coff
-
-masm 命令行开关有 5 种作用范围
-1. 其后的 1 个 token
--unrecognized switch    ml 6, 14; ml64 14
-2. 其后的 1 个文件
--Fo     ml 6, 14; ml64 14
-    ml -Foout\ cmdln/f1.asm -Foout\ cmdln/f2.asm -Foout\ cmdln/f3.asm -Feout\
-3. 其后的所有文件
--coff   ml 6, 14. ml 14 default
--EP     ml 6, 14?; ml64 14?. 和 -Zs 相似在也不生成 obj
--omf    ml 14. ml 6 imply
--Zs     ml 6, 14; ml64 14. absorbs -c
-4. 所有文件
--AT     ml 6
--c      ml 6, 14; ml64 14
--Fe     ml 6, 14; ml64 14
-5. -link
--link   ml 6, 14; ml64 14
-
-我如何确定 -omf 作用于其后的所有文件?
-- 以前听说过 omf 比 coff 内容简单, 体积也小
-- 已经隐约发现了 -coff 是 ml 14 默认值, 但不清楚作用范围是单个文件还是其后的所有文件
-- f1.asm 稍复杂; f2.asm 和 f3.asm 内容一样, 只有一句 end
-
-ml 14 每执行一句, powershell format-hex out/xxx.obj 查看, 比较 obj 的内容
-ml -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
-ml -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ -omf cmdln/f3.asm -Feout/
-ml -Foout/ cmdln/f1.asm -omf -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
-ml -omf -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
-
-
-
-https://github.com/MicrosoftDocs/cpp-docs/issues/1305
-https://github.com/MicrosoftDocs/cpp-docs/issues/1525
-
-==================== masm 命令行 - 观察双引号导致的一些结果
-
-下面既有从本目录编译的, 也有从 cmdln 目录编译的; 由于比较长所以单独放一节
-
-编译时 ml 6 打印下列错误信息; ml 14 类似, ml 6 的 A4017 = ml 14 的 A4018; 可以看到
-- 如果 /Zs 没有完全匹配, 则开始尝试, 原则是单独字母 (Z) + 其它字母
-- s 首先被忽略了; 这算啥逻辑? 是不是把单个字母后面的 1 个字母视作空白给忽略掉?
-- 尝试时不是 1 次减 1 个字母, cmd, off 等类似 "关键词", 一次减掉
-- 这种减法也是奇怪, 如果我弄个以 s 结尾的文件名, 是不是最终它能匹配上 Zs? 没试
-
-ml "-Zs" "cmdln/abc"
- Assembling: cmdln/abc
-
-ml "-Zs " "cmdln/abc"
-warning A4017: invalid command-line option : /Z
- Assembling: cmdln/abc
-
-ml "-Zs   " "cmdln/abc"
-warning A4017: invalid command-line option : /Z
-warning A4017: invalid command-line option : /Z
-warning A4017: invalid command-line option : /Z
- Assembling: cmdln/abc
-
-ml "-Zs "abc"
-warning A4017: invalid command-line option : /Z abc
-warning A4017: invalid command-line option : /Zabc
-warning A4017: invalid command-line option : /Zbc
-warning A4017: invalid command-line option : /Zc
-fatal error A1017: missing source filename
-
-ml "-Zs "coff"
-warning A4017: invalid command-line option : /Z coff
-warning A4017: invalid command-line option : /Zcoff
-warning A4017: invalid command-line option : /Zoff
-fatal error A1017: missing source filename
-
-ml "-Zs ""abc"
-warning A4017: invalid command-line option : /Z "abc
-warning A4017: invalid command-line option : /Z"abc
-warning A4017: invalid command-line option : /Zabc
-warning A4017: invalid command-line option : /Zbc
-warning A4017: invalid command-line option : /Zc
-fatal error A1017: missing source filename
-
-ml "-Zs ""coff"
-warning A4017: invalid command-line option : /Z "coff
-warning A4017: invalid command-line option : /Z"coff
-warning A4017: invalid command-line option : /Zcoff
-warning A4017: invalid command-line option : /Zoff
-fatal error A1017: missing source filename
-
-ml "-Zs "cmdln/abc"
-warning A4017: invalid command-line option : /Z cmdln/abc
-warning A4017: invalid command-line option : /Zcmdln/abc
-warning A4017: invalid command-line option : /Zln/abc
-warning A4017: invalid command-line option : /Zn/abc
-warning A4017: invalid command-line option : /Z/abc
-warning A4017: invalid command-line option : /Zabc
-warning A4017: invalid command-line option : /Zbc
-warning A4017: invalid command-line option : /Zc
-fatal error A1017: missing source filename
-
-ml "-Zs "cmdln/coff"
-warning A4017: invalid command-line option : /Z cmdln/coff
-warning A4017: invalid command-line option : /Zcmdln/coff
-warning A4017: invalid command-line option : /Zln/coff
-warning A4017: invalid command-line option : /Zn/coff
-warning A4017: invalid command-line option : /Z/coff
-warning A4017: invalid command-line option : /Zcoff
-warning A4017: invalid command-line option : /Zoff
-fatal error A1017: missing source filename
-
-==================== masm 编译错误
-
-fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
-
-If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
-should be 0x0006 IMAGE_REL_I386_DIR32), then you should be able to see at least one of these in the
-IMAGE_RELOCATION records. The symbol name and RVA are also displayed which should help narrow things down.
-wjr April 15, 2014, 07:06:37 AM
-http://masm32.com/board/index.php?topic=3114.0
 
 ==================== masm 和 c 的对比
 

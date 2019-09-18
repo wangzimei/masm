@@ -2,24 +2,35 @@
 - [A masm 16 bit dos program](#a-masm-16-bit-dos-program)
     - [end 的两个作用](#end-的两个作用)
     - [非空的段](#非空的段)
-- [masm 的发明](#masm-的发明)
-    - [ptr - coercion](#ptr---coercion)
+- [masm 命令行](#masm-命令行)
+    - [文件编码](#文件编码)
+    - [命令行选项](#命令行选项)
+- [masm 语法](#masm-语法)
+    - [段](#段)
+    - [宏](#宏)
     - [% - expansion](#---expansion)
     - [assume - assumption](#assume---assumption)
+    - [ptr - coercion](#ptr---coercion)
+- [masm 编译错误](#masm-编译错误)
+    - [LNK1190](#lnk1190)
 - [x86](#x86)
     - [mnemonic](#mnemonic)
     - [storage](#storage)
     - [addressing](#addressing)
     - [interrupt](#interrupt)
-- [program lifecycle](#program-lifecycle)
+- [x86 指令的等价表示](#x86-指令的等价表示)
+- [dos](#dos)
     - [psp](#psp)
     - [启动](#启动)
     - [退出](#退出)
-- [dos api](#dos-api)
+    - [dos api](#dos-api)
+- [windows](#windows)
+    - [crt](#crt)
+    - [早期 crt 代码](#早期-crt-代码)
 - [out](#out)
     - [omf, coff, mz, pe](#omf-coff-mz-pe)
-    - [com file](#com-file)
-
+    - [com 文件](#com-文件)
+    - [查看二进制](#查看二进制)
 
 ---
 
@@ -122,7 +133,7 @@ s:      mov     ax, 4c00h
         int     21h
         byte    11 dup (?)
 xxx     ends
-        end s
+        end     s
 ```
 
 \* *end 后面必须是标签不能是立即数 (字面量), 否则 error A2094: operand must be relocatable*<br>
@@ -135,7 +146,109 @@ xxx     ends
 - 为了正常运行, 写 dos (?) 要求的填充字节. 不把代码放栈里时可省略本条
 - 为了正常退出, 写 dos 要求的返回语句 mov ax, 4c00h/int 21h
 
-## masm 的发明
+
+
+## masm 命令行
+
+### 文件编码
+
+masm 的 source-charset 固定为 ascii; 串原样放入二进制, 相当于 execution-charset = source-charset;
+无需转义字符, 因为指定字符时既可以用字面量也可以用数字, 字符字面量就是其 ascii 值.
+
+### 命令行选项
+
+(写这里时发现 dosbox 中命令超过一行而换行后, 没法把光标移回到上一行)
+
+**对单个文件生效的开关必须规定个位置否则 file1 -xxx file2 不确定 -xxx 作用于谁**
+
+masm 规定
+
+- 对单个文件生效的开关放文件前
+- 命令行开关和文件名都可以用引号括起来
+- 双引号内 "" = "
+- 以 - 打头的 token 是命令行开关; 因此编译文件 -coff 要写成类似 ml ./-coff
+
+masm 命令行开关有 5 种作用范围
+```
+1. 其后的 1 个 token
+-unrecognized switch    ml 6, 14; ml64 14
+
+2. 其后的 1 个文件
+-Fo         ml 6, 14; ml64 14
+    ml -Foout\ cmdln/f1.asm -Foout\ cmdln/f2.asm -Foout\ cmdln/f3.asm -Feout\
+
+3. 其后的所有文件
+-coff       ml 6, 14. ml 14 default
+-EP         ml 6, 14?; ml64 14?. 和 -Zs 相似在也不生成 obj
+-omf        ml 14. ml 6 imply
+-Zs         ml 6, 14; ml64 14. absorbs -c
+
+4. 所有文件
+-AT         ml 6
+-c          ml 6, 14; ml64 14
+-Fe         ml 6, 14; ml64 14
+
+5. -link    ml 6, 14; ml64 14
+```
+
+我如何确定 -omf 作用于其后的所有文件?
+
+- 以前听说过 omf 比 coff 内容简单, 体积也小
+- 已经隐约发现了 -coff 是 ml 14 默认值, 但不清楚作用范围是单个文件还是其后的所有文件
+- f1.asm 稍复杂; f2.asm 和 f3.asm 内容一样, 只有一句 end
+
+ml 14 每执行一句, powershell format-hex out/xxx.obj 查看, 比较 obj 的内容
+```
+ml -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
+ml -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ -omf cmdln/f3.asm -Feout/
+ml -Foout/ cmdln/f1.asm -omf -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
+ml -omf -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
+```
+
+
+https://github.com/MicrosoftDocs/cpp-docs/issues/1305<br>
+https://github.com/MicrosoftDocs/cpp-docs/issues/1525
+
+
+
+
+## masm 语法
+
+### 段
+
+8086, 8088, 80186, 80188 是 16 位寄存器和 20 位地址线 <https://en.wikipedia.org/wiki/RAM_limit>.
+它们用 16 位段寄存器和 16 位通用寄存器保存两个数 seg 和 offset, seg * 16 + offset = 20 位地址.
+
+masm 有关键字 segment (段), 前面演示了 masm 要求代码必须有段. 16 位程序里 segment 对应 16 位 cpu 的段;
+32 位程序里 segment 对应可执行文件的节, 节对应内存的页; 节的一个作用是指出一段内存的读, 写, 执行属性.
+
+
+
+**todo** diff on use32, flat<br>
+https://stackoverflow.com/questions/45124341/effects-of-the-flat-operand-to-the-segment-directive
+
+
+### 宏
+
+/macros.md
+
+### % - expansion
+
+- 按当前的基数对常量表达式求值, 把得到的数字转为字符串
+- 做为一行的首个非空白字符时, 展开该行的文本宏和宏函数; 用于 echo, title, subtitle, .erre 等把参数一律视为文本的指示.
+    一律 - 包括 %, 常量表达式 - 视为文本, 就没法在它们的参数里调用宏或对表达式求值; 但又有这种需求, 于是 masm 说,
+    既然宏展开符号 % 放 (比如 echo) 后面没戏, 那就放前面吧; 常量表达式的话你们就在外面赋值给文本宏, 别在里面求值了.
+    masm 居然没有选择添加或规定转义字符, 真乃一大幸事.
+
+masm 有个以 % 打头的指示, %out; 后来加了个 echo 用于取代其功能, 但 %out 那独树一帜的名字始终盘旋于我脑海之中.
+%out 是个 4 字符的 token, 它就是能把 % 用作自己名字的一部分. 这 microsoft 做事也是随心所欲, 佩服!
+
+### assume - assumption
+
+为什么 microsoft 会发明这个关键字? 大概是在用 x86 编程时看到了太多的假设, 隐含, 暗指<br>
+**todo** 列出 intel 有哪些假设
+
+没啥意义的东西, masm 提供这个指示用来克服自己制造的困难.
 
 ### ptr - coercion
 
@@ -206,26 +319,22 @@ conversion | implicitly/explicitly changing a value from one data type to anothe
 coercion   | implicit conversion
 cast       | explicit type conversion, may be a re-interpretation of a bit-pattern or a real conversion
 
-### % - expansion
 
-- 按当前的基数对常量表达式求值, 把得到的数字转为字符串
-- 做为一行的首个非空白字符时, 展开该行的文本宏和宏函数; 用于 echo, title, subtitle, .erre 等把参数一律视为文本的指示.
-    一律 - 包括 %, 常量表达式 - 视为文本, 就没法在它们的参数里调用宏或对表达式求值; 但又有这种需求, 于是 masm 说,
-    既然宏展开符号 % 放 (比如 echo) 后面没戏, 那就放前面吧; 常量表达式的话你们就在外面赋值给文本宏, 别在里面求值了.
-    masm 居然没有选择添加或规定转义字符, 真乃一大幸事.
+## masm 编译错误
 
-masm 有个以 % 打头的指示, %out; 后来加了个 echo 用于取代其功能, 但 %out 那独树一帜的名字始终盘旋于我脑海之中.
-%out 是个 4 字符的 token, 它就是能把 % 用作自己名字的一部分. 这 microsoft 做事也是随心所欲, 佩服!
 
-### assume - assumption
+## LNK1190
 
-为什么 microsoft 会发明这个关键字? 大概是在用 x86 编程时看到了太多的假设, 隐含, 暗指<br>
-**todo** 列出 intel 有哪些假设
 
-没啥意义的东西, masm 提供这个指示用来克服自己制造的困难.
+fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
+
+If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
+should be 0x0006 IMAGE_REL_I386_DIR32), then you should be able to see at least one of these in the
+IMAGE_RELOCATION records. The symbol name and RVA are also displayed which should help narrow things down.
+wjr April 15, 2014, 07:06:37 AM
+http://masm32.com/board/index.php?topic=3114.0
 
 ## x86
-
 
 
 
@@ -272,22 +381,58 @@ in, out
 
 ### interrupt
 
+## x86 指令的等价表示
 
-## program lifecycle
+由于 intel 的限制, 等号后的代码不一定能执行, 只起解释作用
+
+intel 不允许 ip/eip/rip 做为指令的操作数, 指令寄存器通过 jmp, call, ret 间接修改, 下面有读取的例子<br>
+\* *arm32 允许读写 ip, arm64 不允许*<br>
+\* *8086, 8088 允许 pop cs, opcode 0x0F*
+
+https://www.keycdn.com/support/http-equiv<br>
+HTTP response header equivalent, http-equiv = treat this meta as if it were in http response header
+
+```
+https://stackoverflow.com/questions/4292447/does-ret-instruction-cause-esp-register-added-by-4
+
+retn = pop eip
+retf = pop eip/pop cs
+
+to avoid add esp, 4, you can use `mov eax, [esp]/jmp eax`
+
+jmp rel_offet       = add eip, rel_offet
+jmp absolute_offset = mov eip, absolute_offset
+
+pop register = mov register, [esp]/add esp, 4
+
+https://stackoverflow.com/questions/46714626/does-it-matter-where-the-ret-instruction-is-called-in-a-procedure-in-x86-assembl
+
+; slow alternative to "jmp label"
+jmp continue_there_address =
+    push continue_there_address
+    ret
+    continue_there_address:
+
+https://stackoverflow.com/questions/8333413/why-cant-you-set-the-instruction-pointer-directly
+
+call get_eip
+    get_eip:
+pop eax ; eax now contains the address of this instruction
+```
+
+## dos
 
 如果是写个程序转为机器码后直接让 cpu 执行 (无配合), 那写法比较随意, 没有什么顾忌;<br>
-如果是写个程序在操作系统中执行, 就得遵照操作系统的规定.
+如果是写个程序在操作系统中执行, 那就至少得照顾操作系统的死活, 即遵守操作系统的规定.
 
 ### psp
 
 https://en.wikipedia.org/wiki/Program_Segment_Prefix
 
-psp = Program Segment Prefix<br>
-is a data structure used in DOS systems to store the state of a program.
-resembles the Zero Page in the CP/M operating system.
+psp = Program Segment Prefix, dos 使用这个数据结构存储程序状态, 类似 CP/M 里的 Zero Page.
 
-on entry: ds = es = seg psp<br>
-other means to get psp: int21h/ah51h or int21h/ah62h, result is in bx
+com, exe 开始执行时 ds = es = seg psp. int21h/ah51h 和 int21h/ah62h 也可以获取 psp, 结果放在 bx.
+
 
 dos 1
 
@@ -308,10 +453,9 @@ https://stackoverflow.com/questions/12591673/whats-the-difference-between-using-
 我也记得 com 文件初始 sp 是 fffe, 而 fffe 和 ffff 都是 0<br>
 因此, com 程序设计的退出办法应该是在 cs 未改变的前提下结束时直接 retn, 这导致 `ip = *(word*)0xfffe`
 
-http://www.tavi.co.uk/phobos/exeformat.html<br>
-非 dos 不一定有 psp
+非 dos 不一定有 psp http://www.tavi.co.uk/phobos/exeformat.html
 
-下面程序打印命令行参数, cp/m, dos 称作 command tail. 修改了 psp 的一个字节, 改为 $
+本节后面的程序打印命令行参数 - cp/m, dos 称作 command tail. 修改了 psp 的一个字节, 改为 $
 
 `ml -AT -Foout\ dd.msm -Feout\`
 
@@ -326,11 +470,10 @@ out\dd     ddd  --x
 
 `cv out\dd.com`
 
-
 ### 启动
 
-dos 程序启动时, com 的 ip = 起始地址 = 100h; exe 的等于代码指定的起始地址
 
+dos 程序启动时, com 的 ip = 起始地址 = 100h; exe 的等于代码指定的起始地址
 http://www.fysnet.net/yourhelp.htm
 ```
 The following are the register values at DOS .COM file startup in the given DOS brands and versions
@@ -357,7 +500,6 @@ register contents at program entry:
     SS          Initial value (relocated) from .EXE file header.
 ```
 
-
 ### 退出
 
 dos 程序退出时要调用规定的 dos 函数; windows 程序退出时要调用 ExitProcess
@@ -373,7 +515,7 @@ ml -DcomRetn -Foout\ dd.msm -Feout\
               若又有 cs = seg psp 则 retn 导致执行 psp 0000 处开始的机器码.
               不知道这方法是否可靠, 即不知道栈是否总是保留两个字节的 0
 -DcomRetf     错误的写法, retf 使用栈上的 2 个 word 而栈上只有 1 个. 执行后 dosbox 不接受输入, 只能重启 dosbox
--DexePushRetf 正常做法, 保存 seg psp 和 0, retn 总是能执行. 当然更正常的做法是 int21h/ah4ch
+-DexePushRetf 正常做法, 保存 seg psp 和 0, retf 总是能执行. 当然更正常的做法是 int21h/ah4ch
 ```
 ```
 ifdef comRetn
@@ -437,8 +579,7 @@ masm 根据它的规则修改你的代码
 常量表达式, 除了立即数. 因此要说代码被修改了你自己也有问题, 因为你用它提供的结构了; 我想很难反驳吧?
 ```
 
-
-## dos api
+### dos api
 
 dos 的 api 调用就是 int
 
@@ -483,92 +624,241 @@ Notes: unless the process is its own parent, all open files are closed and all m
 mov ax, 4c00h/int 21h 就是 return 0
 ```
 
-## out
+## windows
 
+**入口**
+
+coff 希望入口标签以下划线开头, warning A4023:with /coff switch, leading underscore required for start address
+
+link 需要 -subsystem, 没有指定时尝试从入口标签推导它, 规则是
+
+- _main 是 console, _WinMain@16 是 windows, 区分大小写; 16 位汇编常用的 start link 不认
+- 入口不是上面的两个标签时报错 LINK : fatal error LNK1221: 无法推导出子系统，必须定义它
+
+**段属性**
+
+- 16 位程序所有内存都是可执行-读写; 32 位 pe 的段对应节 (section), 具有单独的执行, 读, 写属性
+- 32 位程序的段需要标记为 flat
+
+**节属性**
+
+- link 认识段名 _TEXT 和具有 "code" 类的段, 对应的节的属性是可执行-只读
+- link 认识段名 _DATA, _DATA 和 link 不认识的段对应的节的属性是不可执行-可写
+- editbin 可以修改节的属性
+
+> http://masm32.com/board/index.php?topic=602.15 sinsi August 22, 2012, 06:36:17 PM<br>
+> .code expands to "_TEXT segment public"<br>
+> .data expands to "_DATA segment public"<br>
+
+**windows api** proto near32 stdcall
+
+**退出** 有地方说要用 ExitProcess; 我用 ret 指令看似也正常, 但不知道想返回值的话该咋做
+
+```
+; ml -Foout/ dd.masm -Feout/
+
+_TEXT   segment flat
+_main:
+
+        includelib kernel32.lib
+GetStdHandle    proto near32 stdcall :dword
+WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
+
+        push    -11 ; -11 = STD_OUTPUT_HANDLE
+        call    GetStdHandle ; sets eax on return
+
+; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite,
+; LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved. push backwards
+        push    0
+        push    offset dwd
+        push    sizeof s
+        push    offset s
+        push    eax
+        call    WriteConsoleA
+
+        ret
+_TEXT   ends
+
+data    segment flat
+s       byte    "32 bit program compiled with masm <insert @version here>"
+dwd     dword   ?
+data    ends
+
+        end     _main
+```
+
+### crt
+
+windows crt 程序属于 win32 程序, crt 有额外要求
+
+**入口**
+
+- crt 连接 crt lib, 这里面有入口, 所以使用 crt 的程序 end 不能后跟标签
+- crt 入口要以 cdecl 调用 _main, 所以要么在程序里定义 `main proc c`, 要么定义 public 标签 _main
+
+**c 运行时函数** proto near32 c, 既然是 cdecl, 调用方要清理栈
+
+```
+; 从命令行编译时需要 includelib msvcrt.lib
+; 从 visual studio 2019 编译时不需要 lib, 因为它给 link 传了一堆 lib
+; includelib legacy_stdio_definitions.lib 可能是以前版本的 vs 或 ml 需要
+;
+; ml -Foout/ dd.masm -Feout/
+
+_TEXT   segment flat
+
+        includelib msvcrt.lib
+puts    proto   near32 c
+
+main    proc    c
+        push    offset sz
+        call    puts
+        add     esp, 4
+        ret
+main    endp
+_TEXT   ends
+
+data    segment flat
+sz      byte    "hello", 0
+data    ends
+
+        end
+```
+
+### 早期 crt 代码
+
+早期的 crt/puts 代码使用简化段, 现在不使用简化段. 那种 .code 的写法看着就不舒服.
+
+```
+; ml -Foout/ dd.masm -Feout/
+
+includelib msvcrt.lib
+
+.386
+.model  flat, c
+
+.data
+sz      byte    'hello', 0
+
+.code
+
+puts    proto
+
+main    proc
+        push    offset sz
+        call    puts
+        add     esp, 4
+
+        ; esp, ecx 现在也能用来寻址了
+        add     eax, [esp]
+
+        ; error A2031: must be index or base register
+        ;add     ax, [sp]
+        ;mov     ax, [cx]
+        mov     bp, sp
+
+        ; error A2155: cannot use 16-bit register with a 32-bit address
+        ;add     ax, [bp]
+
+        ; 0xC0000096: Privileged instruction
+        ; 2019.7.1, masm 14.21.27702.2, win10 执行时没任何错误, 但估计指令也不会生效
+        ;sti
+        ;cli
+
+        ret
+main    endp
+
+        end
+```
+
+
+
+
+
+
+
+## out
 
 ### omf, coff, mz, pe
 
 https://en.wikipedia.org/wiki/Comparison_of_executable_file_formats
 
 omf
-https://en.wikipedia.org/wiki/Relocatable_Object_Module_Format
-Relocatable Object Module Format (OMF) 是对象文件的一种格式, 主要用于在 intel 80x86 上运行的软件
-源于 intel 开发的[when?] Object Module Format, dos 用户熟悉的 .obj 文件就是此格式
-MS-DOS, 16-bit Windows, 16/32-bit OS/2 上最重要的对象文件格式
 
-masm 6.11 生成 obj 默认 omf, 可以用 -coff 选项生成 coff
+- https://en.wikipedia.org/wiki/Relocatable_Object_Module_Format
+- Relocatable Object Module Format (OMF) 是对象文件的一种格式, 主要用于在 intel 80x86 上运行的软件
+- 源于 intel 开发的\[when?] Object Module Format, dos 用户熟悉的 .obj 文件就是此格式
+- MS-DOS, 16-bit Windows, 16/32-bit OS/2 上最重要的对象文件格式
+- masm 6.11 生成 obj 默认 omf, 可以用 -coff 选项生成 coff
 
 coff
-https://en.wikipedia.org/wiki/COFF
-Common Object File Format (COFF) 是 executable, object code, and shared library 的格式, 用于 Unix 系统
-in Unix System V, replaced a.out format
-base of XCOFF and ECOFF
-being largely replaced by ELF introduced with SVR4
-coff 及其变种继续用在一些 Unix-like 系统, Microsoft Windows (PE Format), EFI 环境和一些嵌入式开发系统
 
-masm 14 生成 obj 默认 coff, -coff 和 -omf 选项生成对应格式的 obj
+- https://en.wikipedia.org/wiki/COFF
+- Common Object File Format (COFF) 是 executable, object code, and shared library 的格式, 用于 Unix 系统
+- 在 Unix System V 里取代了 a.out 格式
+- base of XCOFF and ECOFF
+- 很大程度上被 SVR4 的 ELF 取代
+- coff 及其变种继续用在一些 Unix-like 系统, Microsoft Windows (PE Format), EFI 环境和一些嵌入式开发系统
+- masm 14 生成 obj 默认 coff, -coff 和 -omf 选项生成对应格式的 obj
 
 mz
-https://en.wikipedia.org/wiki/DOS_MZ_executable
-dos 的 exe 文件格式, 开头的两个字节是 4D 5A, ascii M Z
 
-是 16 位 exe, 比 com 格式新
+- https://en.wikipedia.org/wiki/DOS_MZ_executable
+- dos 的 exe 文件格式, 开头的两个字节是 4D 5A, ascii M Z
+- 是 16 位 exe, 比 com 格式新
 
 pe
-https://en.wikipedia.org/wiki/Portable_Executable
-Portable Executable (PE) 格式是 executables, object code, DLLs, FON Font 等文件的格式, 用于 32/64 位 windows
 
-https://blog.kowalczyk.info/articles/pefileformat.html
-为兼容 msdos 和旧版 windows, pe 保留 mz 头
-
-类比名字, pe 应该是 pef, 就像 omf, coff
-类比系统, elf in Linux and most other versions of Unix; Mach-O in macOS and iOS
+- https://en.wikipedia.org/wiki/Portable_Executable
+    Portable Executable (PE) 格式是 executables, object code, DLLs, FON Font 等文件的格式, 用于 32/64 位 windows
+- https://blog.kowalczyk.info/articles/pefileformat.html
+    为兼容 msdos 和旧版 windows, pe 保留 mz 头
+- 类比名字, pe 应该是 pef, 就像 omf, coff; 类比系统, elf in Linux and most other versions of Unix; Mach-O in macOS and iOS
 
 pe 的 mz 头后面是个 16 位 dos 存根程序, 一般显示:
+
+```
 (Borland tlink32)   This program must be run under Win32.
 (ms link?)          This program cannot be run in DOS mode.
 (???)               This program requires Microsoft Windows.
+```
 
-pe 的 dos 存根
-https://thestarman.pcministry.com/asm/debug/DOSstub.htm
+pe 的 dos 存根 https://thestarman.pcministry.com/asm/debug/DOSstub.htm
 
-
-### com file
+### com 文件
 
 https://en.wikipedia.org/wiki/COM_file
 
-Digital Equipment operating systems, 1970s
-.COM was used as a filename extension for text files containing commands to be
-issued to the operating system (similar to a batch file)
+演变
 
-cp/m
-executable
+- Digital Equipment operating systems, 1970s: .COM was used as a filename extension for text
+    files containing commands to be issued to the operating system (similar to a batch file)
+- cp/m: executable
+- dos: executable
 
-dos
-executable
+特点
 
-max size = 65,280 (FF00h) bytes (256 bytes short of 64 KB)
-stores all its code and data in one segment
-entry point is fixed at 0100h
+- max size = 65,280 (FF00h) bytes (256 bytes short of 64 KB)
+- stores all its code and data in one segment
+- entry point is fixed at 0100h
 
-com 文件在执行时可以通过动态链接等技术, 任意使用内存; 当然 exe 文件也可以.
+\* *com 和 exe 在执行时可以通过动态链接等技术任意使用内存.*
 
 dos 和 cp/m 的 com 文件结构虽然一样但互不兼容. dos 文件包含的是 x86 指令和 dos 系统调用;
 cp/m 文件包含 8080 指令和 cp/m 系统调用, 特定于机器的程序可能还会有 8085, Z80 指令
 
 fat binary
-https://en.wikipedia.org/wiki/Fat_binary
-基本上是把多个功能一样的程序放到一个文件里, 开头的代码选择使用其中一个
-开头的代码即入口代码, 是在几个系统中都有效但功能不同的指令, 在不同的系统中执行有不同的效果, 比如
-C3h, 03h, 01h
-x86     ret
-8080    JP 103h
 
-bat 文件可能使用命令的全名, win nt 为兼容这些 bat, 下列 exe 文件仍以 .com 结尾
-DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE
-作为 exe, 它们的文件开始俩字节是 MZ, 操作系统能认出来并按 exe 执行
+- https://en.wikipedia.org/wiki/Fat_binary
+- 基本上是把多个功能一样的程序放到一个文件里, 开头的代码选择使用其中一个
+- 开头的代码即入口代码, 是在几个系统中都有效但功能不同的指令, 在不同的系统中执行有不同的效果, 比如
+    `C3h, 03h, 01h` 在 x86 上是 `ret`, 在 8080 上是 `JP 103h`
 
-执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo, 找 foo.com 或 foo.exe
+bat 文件可能使用命令的全名, win nt 为兼容这些 bat, 下列 exe 文件仍以 .com 结尾:<br>
+DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE<br>
+作为 exe, 它们的文件开始俩字节是 MZ, 操作系统能认出来并按 exe 执行.
+
+执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo, 找 `foo.com` 或 `foo.exe`.
 win nt 环境变量 PATHEXT 可以指定扩展名顺序, 默认仍然是 com 先于 exe
 
 ```
@@ -606,9 +896,17 @@ Microsoft MASM 6.1 Programmer's Guide.pdf，p56，Tiny Model
 pointer fixups, and sends /TINY to the linker.
 ```
 
+### 查看二进制
 
+查看生成的 obj
 
+```
+# powershell
+format-hex out/readme.obj
 
+# macos 常用 hexdump, od, xxd
+xxd out/readme.obj
+```
 
 
 
