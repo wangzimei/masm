@@ -1,4 +1,6 @@
 
+[目录](#目录)
+
 ## A crash course
 
 - 确保已经安装了 masm, 在命令行输入 ml 回车以确认
@@ -183,7 +185,7 @@ endif
     - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
     - [文本宏死区展开](#文本宏死区展开)
-    - [douglas-crockford/jsgoodpart/memoizer](#douglas-crockford/jsgoodpart/memoizer)
+    - [douglas-crockford/jsgoodpart/memoizer](#douglas-crockfordjsgoodpartmemoizer)
 - [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
     - [闪现](#闪现)
     - [name TEXTEQU macroId?](#name-textequ-macroId)
@@ -915,7 +917,7 @@ masm    ,           <,>                 <!<>            cooked string (buggy)   
 
 #### 宏函数作参数, bug1: 后有圆括号时
 
-宏函数 f 作参数, 后面有圆括号时, 会忽略 f 和 () 之间的字符调用 f()
+宏函数 f 作参数, 后面有圆括号时, 会忽略 f 和 () 之间的字符调用 f().
 
 ```
 ; ml -Zs dd.msm
@@ -964,7 +966,7 @@ mp 是宏函数时行为一样.
 
 #### 宏函数作参数, bug2: 后无圆括号时
 
-宏函数 f 作参数, 后面没有圆括号时不发生调用, 但会把 f 后面的所有字符合成一个参数
+宏函数 f 作参数, 后面没有圆括号时不发生调用, 但会把 f 后面的所有字符合成一个参数.
 
 ```
 mp macro  a, b, c, d, e, f, g
@@ -1437,12 +1439,12 @@ tag macro a: req, b: =<t>, c: vararg        tag       a       b    t   c    abc 
     exitm <whatever>                                  <whatever>                    abc <whatever>
 endm
 
-    macro  : req,  : =< >,  : vararg                    ^                   ^   ^   ^
-    local  ,  ,                                         |                   |   |   | 这是调用处的展开结果
-                                                    这是用户填入的内容
-                                                                            |   | 这是调用处所在行前面的展开结果
-                                            <- 这是 masm 提供的结构
-    exitm                                                                   | 这是调用时填入的内容
+___ macro _: req, _: =<_>, _: vararg                    ^                   ^   ^   ^
+    local _, _, _                                       |                   |   |   | 这是调用处的展开结果
+    ________________                                这是用户填入的内容
+    ________________                                                        |   | 这是调用处所在行前面的展开结果
+    ________________                        <- 这是 masm 提供的结构
+    exitm __________                                                        | 这是调用时填入的内容
 endm
 ```
 
@@ -1803,8 +1805,9 @@ call_with_args_expanded macro f: req, rest: vararg
     local x, len
 
     ;; 不能写 x textequ <f(>, rest, <)>
-    ;; - 没传参数时 rest 是空串, 得到 x textequ <@sizestr(>, , <)>, 语法错误
+    ;; - 没传参数时 rest 是空串, 得到 x textequ <f(>, , <)>, 语法错误
     ;; - rest 里有未定义的名字时, 语法错误
+    ;; x textequ <f(>, <rest>, <)> = <f(rest)>, rest = arg2, arg3, ..., 参数均未展开, 也不行
     ;; 因此需要在 for 里判断每个参数, 反复拼接
 
     x textequ <>
