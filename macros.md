@@ -1,5 +1,4 @@
 
-
 ## A crash course
 
 - 确保已经安装了 masm, 在命令行输入 ml 回车以确认
@@ -145,7 +144,6 @@ endif
         end     start
 ```
 
-
 ## 目录
 
 - [A crash course](#a-crash-course)
@@ -157,10 +155,6 @@ endif
     - [分支](#分支)
     - [循环和跳转](#循环和跳转)
     - [重复块](#重复块)
-        - [repeat](#repeat)
-        - [while](#while)
-        - [for, forc](#for-forc)
-        - [非行首的重复块](#非行首的重复块)
     - [用于处理字符串的指示和预定义函数](#用于处理字符串的指示和预定义函数)
     - [输入输出](#输入输出)
         - [包含](#包含)
@@ -168,7 +162,9 @@ endif
     - [文本宏](#文本宏)
     - [宏过程](#宏过程)
     - [宏函数](#宏函数)
-        - [bug: 莫名其妙的调用](#bug-莫名其妙的调用)
+    - [宏参数](#宏参数)
+        - [宏函数作参数, bug1: 后有圆括号时](#宏函数作参数-bug1-后有圆括号时)
+        - [宏函数作参数, bug2: 后无圆括号时](#宏函数作参数-bug2-后无圆括号时)
     - [两种查找文本宏和宏函数的模式](#两种查找文本宏和宏函数的模式)
         - [模式 1](#模式-1)
         - [模式 2](#模式-2)
@@ -178,11 +174,16 @@ endif
     - [opattr, @cpu, pushcontext, popcontext](#opattr-cpu-pushcontext-popcontext)
     - [常见编译错误](#常见编译错误)
     - [调试?](#调试)
-- [代码演示](#代码演示)
+- [观察与思考](#观察与思考)
+    - [退化](#退化)
     - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
     - [前序遍历, 以及 masm 令人着急的处理能力](#前序遍历-以及-masm-令人着急的处理能力)
-    - [返回函数](#返回函数)
+    - [模式 2 不撮合](#模式-2-不撮合)
+- [代码演示](#代码演示)
+    - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
+    - [文本宏死区展开](#文本宏死区展开)
+    - [douglas-crockford/jsgoodpart/memoizer](#douglas-crockford/jsgoodpart/memoizer)
 - [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
     - [闪现](#闪现)
     - [name TEXTEQU macroId?](#name-textequ-macroId)
@@ -206,12 +207,13 @@ masm 定义的几百个关键字中有一类叫宏指令, 处理宏指令及宏�
 <br>这些基本事情可以组合后出现在一行里面.
 
 masm 从上往下读取行, 从左往右处理行里的文本, 行尾的 `\` 视为续行. 编译原理/词法分析/tokenization 把字符序列转换为 token 序列,
-masm 的预处理发生在词法分析阶段: 拿到 token 后查看,
+masm 的预处理发生在词法分析阶段, 拿到 token 后查看:
 - 如果是宏指令 (pp1, pp2, pp3, pp4), 执行, 否则
 - 如果是宏指令定义的名字 (pp5), 进行文本替换, 否则
 - 继续词法分析
 
 **不要被名字骗了, masm 的预处理不是预先处理; 它和处理纠缠在一起, 预处理得到的 token 直接交给词法分析.**
+<br>* *或者我对预处理存在不切实际的期望? 预处理说的本来就是对 token 进行预处理, 而不是对源文件进行预处理?*
 
 `ml -EP dd.msm`<br>
 -EP 在屏幕上打印预处理结果, 不生成 obj
@@ -387,7 +389,7 @@ content of str1 differs from str2
 
 \* *610guide p???/p187 repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm*
 
-#### repeat
+**repeat**
 
 ```
 repeat constexpr
@@ -436,7 +438,7 @@ factorial2str textequ % factorial2amt
 end
 ```
 
-#### while
+**while**
 
 ```
 while expression
@@ -462,7 +464,7 @@ ENDM
 end
 ```
 
-#### for, forc
+**for, forc**
 
 ```
 for i, <text>
@@ -542,7 +544,7 @@ endif
 end
 ```
 
-#### 非行首的重复块
+**非行首的重复块**
 
 ```
 ; ml -EP dd.msm
@@ -869,8 +871,8 @@ masm 看到 `% var textequ <mf1() mf2()>` 后先在这行前面展开 mf1, 用�
 
 - 如果宏过程有用于退出的 exitm text-item 语句, 可以是在 if 0 里面 (bug), 宏过程变成宏函数<br>
     bug: 由 if 0 里的 exitm text-item 创建的宏函数, 用来给文本宏赋值时会失败, 但不报错
+- exitm 后跟文本项, 不能像 catstr/textequ 那样拼接字符串; exitm <> 返回空字符串
 - exitm, %exitm text-item, 不会把宏过程变成宏函数
-- exitm 后跟文本项; exitm <> 返回空字符串
 - 调用时不带圆括号是语法错误
 - 对于宏过程 f, f(3) 是一个参数 (3); f(1, dd) 是俩参数 (1 和 dd); 逗号分隔参数, 圆括号无特殊意义
 - 参数不产生名字, 生成语句时按模式 2 确定参数名然后替换为传入的值, 没用上的参数是空串
@@ -898,7 +900,22 @@ endif
 end
 ```
 
-#### bug: 莫名其妙的调用
+### 宏参数
+
+我把宏参数和命令行参数放一块比了比. 命令行是程序自己处理原始命令行, masm 是 masm 处理完给你, 你没有机会拿到原始字符串,而这个处理过程有 bug:
+
+- 移除了第 1 层尖括号
+- 宏函数作参数时的 bug
+
+```
+        delimiter   delimiter in arg    quote in arg    vararg                  substitution
+cmd     space       " "                 "\""            raw string              no
+masm    ,           <,>                 <!<>            cooked string (buggy)   yes
+```
+
+#### 宏函数作参数, bug1: 后有圆括号时
+
+宏函数 f 作参数, 后面有圆括号时, 会忽略 f 和 () 之间的字符调用 f()
 
 ```
 ; ml -Zs dd.msm
@@ -941,17 +958,54 @@ mp f,,,,d,, (15, 876)ddd
 为 mp 的参数. 上面代码 -EP 报的错是
 error A2008: syntax error : in f  15 876
 error A2008: syntax error : in mp 4ddd
+
+mp 是宏函数时行为一样.
 ```
 
-我把宏参数和命令行参数放一块比了比. 命令行是程序自己处理原始命令行, masm 是 masm 处理完给你, 你没有机会拿到原始字符串,而这个处理过程有 bug:
+#### 宏函数作参数, bug2: 后无圆括号时
 
-- 移除了第 1 层尖括号<br>
-- 莫名其妙的调用
+宏函数 f 作参数, 后面没有圆括号时不发生调用, 但会把 f 后面的所有字符合成一个参数
 
 ```
-        delimiter   delimiter in arg    quote in arg    vararg                  substitution
-cmd     space       " "                 "\""            raw string              no
-masm    ,           <,>                 <!<>            cooked string (buggy)   yes
+mp macro  a, b, c, d, e, f, g
+    echo [mp] a
+    echo [mp] b
+    echo [mp] c
+endm
+
+mf macro a, b, c, d, e, f, g
+    echo [mf] a
+    echo [mf] b
+    echo [mf] c
+    exitm <>
+endm
+
+mp a,  mf , slkdjfoiu, 097-98yph&nj)
+mp a, <mf>, slkdjfoiu, 097-98yph&nj)
+echo
+mf(a,  mf , slkdjfoiu, 097-98yph&nj)
+mf(a, <mf>, slkdjfoiu, 097-98yph&nj)
+echo
+mf a, (mf , slkdjfoiu, 097-98yph&nj)
+end
+
+输出
+[mp] a
+[mp] mf , slkdjfoiu, 097-98yph&nj)
+[mp]
+[mp] a
+[mp] mf
+[mp] slkdjfoiu
+
+[mf] a
+[mf] mf , slkdjfoiu, 097-98yph&nj
+[mf]
+[mf] a
+[mf] mf
+[mf] slkdjfoiu
+
+dd.msm(21): error A2048: nondigit in number
+mf a, (mf , slkdjfoiu, 097-98yph&nj) 引发上述错误. todo: 调查它
 ```
 
 ### 两种查找文本宏和宏函数的模式
@@ -959,7 +1013,7 @@ masm    ,           <,>                 <!<>            cooked string (buggy)   
 masm 视一行是否以 % 打头, 采取两种确定文本宏和宏函数的办法
 
 - 查找模式仅适用于文本宏和宏函数; 宏过程只有一种查找模式, % 影响的是它的参数; 宏过程的名字也不靠 & 确定
-- **死区** 模式 1 和 2 都不从这些地方查找宏名: 宏函数参数的尖括号, 没符号
+- **文本宏死区** 模式 1 和 2 都不从这些地方查找文本宏: 宏函数参数的尖括号, 没符号
 
 #### 模式 1
 
@@ -968,7 +1022,7 @@ masm 视一行是否以 % 打头, 采取两种确定文本宏和宏函数的办�
 - **过滤** 不从下列地方查找宏名<br>
     引号, 尖括号; 块宏, echo, name, title, ... 的参数; for, forc 的参数; 文本项的尖括号, 没符号
 - **撮合** 若展开出的串最后一个 token 是宏函数名, 往后查找圆括号以展开该函数 (**bug1**); 否则
-- **不拼接原则** 不和后面的串拼接. **撮合是拼接的一种**
+- **不拼接原则** 不和后面的串拼接. 撮合是**拼接**的一种
 
 #### 模式 2
 
@@ -982,7 +1036,8 @@ masm 视一行是否以 % 打头, 采取两种确定文本宏和宏函数的办�
 
 **bug1**: 此链最后一个调用必须返回文本宏否则报 A2039, 给人感觉调用结果没有结束符; 撮合无论成功与否 -EP 都能看到一堆乱码.
     模式 2 撮合, 拼接都正常, -EP 也没有乱码. 我感觉模式 2 只管展开, 让下一遍去发现拼接结果, 但不知道是否立即撮合.
-    为什么怀疑模式 2 的立即撮合呢? 因为如果立即做, -EP 又不出乱码, 说明模式 1 和 2 各自有执行函数的代码, 显然不简练
+    为什么怀疑模式 2 的立即撮合呢? 因为如果立即做, -EP 又不出乱码, 说明模式 1 和 2 各自有执行函数的代码, 显然不简练.
+    参考: [模式 2 不撮合](#模式-2-不撮合)
 
 **note1**: 肯定还有很多没有列出来的情况, 只能遇到了再添加
 
@@ -1258,21 +1313,6 @@ end
 ```
 
 ```
-todo: 模式 2 的撮合函数是在模式 2 还是模式 1 调用的? 继续研究下面这种
-
-te1 textequ <&f>
-te2 textequ <te1>
-f macro
-    echo f called
-    exitm <>
-endm
-
-% te1& ()
-
-end
-```
-
-```
 todo: 感觉模式 2 只看初始内容里的 &, 不管展开出的 &. 证明它
 
 end
@@ -1384,7 +1424,35 @@ end
 
 masm 不支持调试宏程序, 没有断点和单步执行. echo, -EP, 错误信息是常用的调试手段.
 
-## 代码演示
+## 观察与思考
+
+### 退化
+
+```
+tag macro a: req, b: =<t>, c: vararg        tag       a       b    t   c    abc tag(arg1, arg2, arg3)
+    local x, y, z                                     x  y  z
+    make-use-of a, b                            make-use-of a  b                make-use-of arg1, arg2
+    make-use-of c, x                            make-use-of c  x                make-use-of arg3, ??0x
+    make-use-of y, z                            make-use-of y  z                make-use-of ??0y, ??0z
+    exitm <whatever>                                  <whatever>                    abc <whatever>
+endm
+
+    macro  : req,  : =< >,  : vararg                    ^                   ^   ^   ^
+    local  ,  ,                                         |                   |   |   | 这是调用处的展开结果
+                                                    这是用户填入的内容
+                                                                            |   | 这是调用处所在行前面的展开结果
+                                            <- 这是 masm 提供的结构
+    exitm                                                                   | 这是调用时填入的内容
+endm
+```
+
+masm 提供一个多行并且复杂的结构用来定义宏函数, 用户在里面填入内容; 定义的宏函数在使用处是个单行并且简单的结构
+名字 (参数, 参数, ...), 调用的结果也是个简单的单行串. 退化体现在哪些地方?
+
+- 具有特殊意义的符号 `macro : req = vararg local exitm endm` 不能用了
+- 多行变单行了
+
+退化的后果是无法用它提供的语法创造更多语法. 当然这本来也不是 masm 的目标, 只是我自己的一个想法.
 
 ### -EP 的错误输出? 执行结果正确
 
@@ -1496,7 +1564,37 @@ todo: 证明它能或不能. 可能作为论据的事实
 - yes 隐含的参数? 有没有? 如何实现?
 ```
 
-### 返回函数
+### 模式 2 不撮合
+
+ml -Zs dd.msm
+
+```
+arg textequ <1234567890>
+te  textequ <f>
+z   textequ <>
+
+f macro a
+    echo f called with a
+    exitm <z>
+endm
+
+; 模式 1 撮合, 输出 f called with arg
+te(arg)
+
+; 输出 f called with 1234567890
+% te(arg)
+end
+
+模式 2 如果撮合, 输出会和模式 1 一样; 但实际输出表明调用 f 时 arg 已经展开了. 按从左到右的顺序, 模式 2 下 masm
+先看到函数名 f 和圆括号, 然后看到 arg; arg 既然展开了, 说明这函数调用没有发生. 模式 2 之后还有模式 1, f 只能是
+在模式 1 中调用的.
+
+如果抛开 masm 的从左到右, %, 文本宏死区, ... 去解释输出, 当然能列出很多种可能; 但在 masm 里, 上面的分析是唯一的可能.
+```
+
+## 代码演示
+
+### 返回函数名
 
 ml -Zs dd.msm
 
@@ -1636,15 +1734,215 @@ expand_1st_token_n_times(te1, 4) ; "&return value of mf1"
 end
 ```
 
+### 文本宏死区展开
+
+**死区里是不可能展开的, 请放心**
+
+这里要做的事是展开宏函数的文本宏参数, 宏函数的参数列表是文本宏死区, 因此说 "死区展开".
+为什么不能让宏函数在自己函数体里展开参数? 自己定义的宏函数当然没问题, 但那 4 个预定义宏函数你没法改它们的代码.
+要展开宏函数的文本宏参数, 应该是拼接出一个宏函数调用的串然后执行该串.
+
+假设想调用 `@sizestr(s1)`, 如果把这个串原样写出来就会调用 @sizestr, s1 当作字面量, 没有宏替换. 这让我想到 html 的
+script 标签里要避免字面量 `</script>`, 往往是字符串里可能有这东西, 解决方法是分开写, 比如 `"<" + "/scirpt>"`.
+`@sizestr(s1)` 的思路是一样的.
+
+```
+call_@sizestr_with_arg_expanded macro s
+    local x
+    ifdef s
+        x textequ <@sizestr(>, s, <)>
+    else
+        x textequ <@sizestr(s)>
+    endif
+    exitm x
+endm
+
+% echo call_@sizestr_with_arg_expanded(s1)  ; 02
+s1 textequ <this is abc>
+% echo @sizestr(s1)                         ; 02
+% echo call_@sizestr_with_arg_expanded(s1)  ; 011
+
+; 看看它返回的啥
+% echo "&call_@sizestr_with_arg_expanded(s1)"
+; 输出 "011", 说明函数调用发生在 exitm 处, 而不是返回之后; 它返回了一个值, 非常好
+end
+```
+
+当然也有其他的想法, 比如先阻止函数调用, 替换参数后再形成函数调用:
+
+```
+te textequ <@sizestr>
+arg textequ <1234567890>
+
+; te(arg) ; 撮合, 由于 @sizestr 不返回文本宏所以 A2039
+
+; % echo te(arg)
+; 输出 @sizestr(1234567890)
+; 原因: % 导致展开 echo 后面的文本宏和宏函数; te 是文本宏, 展开得到 @sizestr, 这是个函数名, 圆括号在其后的节点,
+; 要发生调用需要撮合, 而模式 2 不撮合
+
+%% echo te(arg)
+end
+```
+
+热身运动: 拼接字符串 (?!??!! 💀 Here Be Dragons)
+
+```
+x textequ <a>
+x textequ x, <b>
+x textequ x, <c>
+
+% echo x ; abc
+end
+```
+
+下面实现任意数量参数的调用
+
+```
+call_with_args_expanded macro f: req, rest: vararg
+    local x, len
+
+    ;; 不能写 x textequ <f(>, rest, <)>
+    ;; - 没传参数时 rest 是空串, 得到 x textequ <@sizestr(>, , <)>, 语法错误
+    ;; - rest 里有未定义的名字时, 语法错误
+    ;; 因此需要在 for 里判断每个参数, 反复拼接
+
+    x textequ <>
+
+    for i, <rest>
+        ifdef i
+            x textequ x, <, >, i
+        else
+            x textequ x, <, i>
+        endif
+    endm
+
+    ifb x
+        x textequ <f()>
+    else
+        ;; 删除开头的逗号
+        len sizestr x
+        x substr x, 2, len - 1
+        x textequ <f(>, x, <)>
+    endif
+
+    exitm x
+endm
+
+f macro a, b, c
+    echo f_a = a, f_b = b, f_c = c
+    exitm <>
+endm
+
+% echo call_with_args_expanded(f)
+% echo call_with_args_expanded(<f>, s1)
+s1 textequ <this is abc, second, <h, there>>
+second textequ <2ndargreplaced>
+% echo call_with_args_expanded(<f>, s1)
+
+end
+
+输出
+f_a = , f_b = , f_c =
+
+f_a = s1, f_b = , f_c =
+
+f_a = this is abc, f_b = 2ndargreplaced, f_c = h, there
+
+注意尖括号. 以前说过 masm 在传参数时删除嵌套等级 = 1 的尖括号. 在这里函数调用扒一层, for 扒一层. 无论是否有 for,
+函数体内没法判断参数在传入时是啥样. 如果想调用 @sizestr 至少得套 3 层尖括号否则 @sizestr 报参数太多
+
+% echo @sizestr(s1)
+% echo call_with_args_expanded(<@sizestr>, <<<s1>>>)
+```
+
+\* *[No Old Maps Actually Say 'Here Be Dragons'](https://www.theatlantic.com/technology/archive/2013/12/no-old-maps-actually-say-here-be-dragons/282267/)*
+
+### douglas-crockford/jsgoodpart/memoizer
+
+🚧 *under construction*
+
+```
+
+数组
+- 字符串 a, b, c, d, ...: 每次都要从逗号解析, 效率低
+- 字符串 000a000b000c...: 固定宽度, 不需要找逗号, 浪费容量
+- 从 local 符号拼接名字, ??0005&3: 最好的办法
+
+var memoizer = function (memo, fundamental) {
+    var shell = function (n) {
+        var result = memo[n];
+
+        if (typeof result !== 'number') {
+            result = fundamental(shell, n);
+            memo[n] = result;
+        }
+
+        return result;
+    };
+
+    return shell;
+};
+
+// 斐波那契数列 f(n) = f(n - 1) + f(n - 2)
+var fibonacci = memoizer([0, 1], function (shell, n) {
+    return shell(n - 1) + shell(n - 2);
+});
+
+// 阶乘 f(n) = n * f(n - 1)
+var factorial = memoizer([1, 1], function (shell, n) {
+    return n * shell(n - 1);
+});
+
+
+fibonacci(10)
+factorial(10)
+
+// memoizer 把函数拆成了两部分
+// 1. n = 特定值时
+// 2. n 可以递推时
+// 因此
+// var fibonacci = memoizer([0, 1], function (shell, n) {
+//     return shell(n - 1) + shell(n - 2);
+// });
+// 是说我想生成一个函数 fibonacci，该函数在 n = 0，1 时分别返回 0，1，
+// n > 1 时返回 fibonacci(n - 1) + fibonacci(n - 2)
+//
+// 由于不能无条件地运用 f(n) = f(n - 1) + f(n - 2) 所以搞了个变量 shell，把公式变成
+// shell(n - 1) + shell(n - 2)，shell 在 n 可以递推时递推，不可递推时采取其他措施。
+// 如果把 memoizer 写成下面那样则会导致在 f 处无限循环
+//
+// function memoizer(memo, fundamental) {
+//     return function (n) {
+//         var result = memo[n];
+//
+//         if (typeof result !== 'number') {
+//             result = fundamental(n);
+//             memo[n] = result;
+//         }
+//
+//         return result;
+//     };
+// }
+//
+// var fibonacci = memoizer([0, 1], function f(n) {
+//     return f(n - 1) + f(n - 2);
+// });
+//
+// memoizer 把一个完整过程拆成了两部分，在给 memoizer 传递参数时可能会让人迷惑。
+// memoizer 的好处是在内部实现了一个缓存从而能加速递归函数的执行。
+```
+
 ## 610guide 和 masm 的 bug
 
 ### 闪现
 
 这些现象我观察到过, 目前无法重现, 我会留意它们
 
-- 宏函数的参数不要求尖括号; 没有尖括号时, 如果在找到某个参数后的逗号前先找到了空格, 则忽略后续逗号, 整个后续参数列表删除首尾空格, 作为一个参数
 - 看到过宏参数也替换成和 local 变量一样的 ??00nn 名字
 - 没给参数加尖括号时看到宏给参数前面加了 ! 符号
+- 宏函数的参数不要求尖括号; 没有尖括号时,
+    如果在找到某个参数后的逗号前先找到了空格, 则忽略后续逗号, 整个后续参数列表删除首尾空格, 作为一个参数.
 
 ### name TEXTEQU macroId?
 
