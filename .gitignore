@@ -4,9 +4,6 @@
 # used in 16 bit os, i.e. dosbox, freedos in virtualbox, ...
 /8086/masm611
 
-# ml 14 outputs this thing when also linking, dunno how to change location or disable
-/mllink$.lnk
-
 # outputs of build
 /out/*
 !/out/.keep
@@ -14,4 +11,11 @@
 # run code snippet
 /dd.msm
 /dd.masm
+
+# occasionally redirect command line outputs to this file
+/fff
+
+# ml 14 outputs this thing when also linking, dunno how to change location or disable
+/mllink$.lnk
+
 
