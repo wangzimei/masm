@@ -149,30 +149,27 @@ endif
 ## 目录
 
 - [A crash course](#a-crash-course)
-- [目录](#目录)
+- 目录
 - [预处理](#预处理)
     - [常量表达式](#常量表达式)
     - [变量](#变量)
     - [常见操作符](#常见操作符)
     - [分支](#分支)
-    - [循环和跳转](#循环和跳转)
     - [重复块](#重复块)
-    - [用于处理字符串的指示和预定义函数](#用于处理字符串的指示和预定义函数)
     - [输入输出](#输入输出)
         - [包含](#包含)
     - [展开](#展开)
     - [文本宏](#文本宏)
     - [宏过程](#宏过程)
     - [宏函数](#宏函数)
-    - [宏参数](#宏参数)
-        - [宏函数作参数, bug1: 后有圆括号时](#宏函数作参数-bug1-后有圆括号时)
-        - [宏函数作参数, bug2: 后无圆括号时](#宏函数作参数-bug2-后无圆括号时)
+    - [参数](#参数)
     - [两种查找文本宏和宏函数的模式](#两种查找文本宏和宏函数的模式)
         - [模式 1](#模式-1)
         - [模式 2](#模式-2)
         - [示例: 宏名](#示例-宏名)
         - [撮合](#撮合)
         - [一些性质](#一些性质)
+    - [用于处理字符串的指示和预定义函数](#用于处理字符串的指示和预定义函数)
     - [opattr, @cpu, pushcontext, popcontext](#opattr-cpu-pushcontext-popcontext)
     - [常见编译错误](#常见编译错误)
     - [调试?](#调试)
@@ -185,7 +182,7 @@ endif
     - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
     - [文本宏死区展开](#文本宏死区展开)
-    - [douglas-crockford/jsgoodpart/memoizer](#douglas-crockfordjsgoodpartmemoizer)
+    - [Douglas Crockford: memoizer](#douglas-crockford-memoizer)
 - [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
     - [闪现](#闪现)
     - [name TEXTEQU macroId?](#name-textequ-macroId)
@@ -193,6 +190,7 @@ endif
     - [masm 忽略错误](#masm-忽略错误)
     - [fatal error DX1020](#fatal-error-dx1020)
     - [vararg](#vararg)
+    - [宏函数作参数时的 bug](#宏函数作参数时的-bug)
 - [早期代码](#早期代码)
     - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
     - [宏函数的各种失败展开](#宏函数的各种失败展开)
@@ -265,15 +263,15 @@ integer || 有 2 种形式
 || 123 | 整数字面量
 || <span id=equal-sign></span>tag = constexpr | 整数变量. 按当前 radix 对表达式求值, 得到整数
 string || 字符串, 或者叫文本. 有 4 种形式
-|| "" '' | masm 说这是字符串. 在汇编里是整数列表, 整数是字符的 ascii 值. 比如 "abc" = "a", "b", "c" = 97, 98, 99
+|| "" '' | masm 说这是字符串. 在汇编里是整数列表, 整数是字符的 ascii 值.<br>比如 "abc" = "a", "b", "c" = 97, 98, 99
 || <> | 字符串字面量, 用尖括号包起来
 || args as `% arg` of... | catstr/exitm/macro-function/macro-procedure/textequ
 || args as `f(arg)`, `f(<arg>)` | [宏函数](#宏函数) f 把前述参数视为字符串
 code label |tag: | 标签是常量
 data label | tag byte/word/... init | 标签是常量
-text macro || 字符串变量. [文本宏](#文本宏)
+text macro || 字符串变量 ([文本宏](#文本宏))
 macro procedure || [宏过程](#宏过程)
-macro function || [宏函数](#宏函数)
+macro function || 宏函数
 
 equ 是 masm 5 就有的关键字, 试了试可以当 textequ 和 = 使, 具体啥区别我没有找到答案. 能确定的是, 如果 equ 定义了整数则该整数不能再次赋值
 
@@ -291,21 +289,15 @@ char | ascii | 解释
 
 操作符的完整列表 <https://docs.microsoft.com/en-us/cpp/assembler/masm/operators-reference?view=vs-2019>
 
-有 4 个地方经常使用尖括号:
+这 3 个地方经常使用尖括号:
 
-- [宏过程](#宏过程), [宏函数](#宏函数)的参数. 假设调用处写的是 before, 宏里面看到的是 after, 有
-
-    . | text
-    ---|---
-    before | `<abc>   8<*H<(*&>h>c      <((*((_)(^!%, $!%#!@#$%>`
-    after  | `abc   8*H<(*&>hc      ((*((_)(^%, $%#@#$`
-
-    可以看到 masm 删掉了嵌套等级 = 1 的尖括号, 简直奇葩. 删掉尖括号导致 [vararg](#vararg) 区分不了传入了几个参数. **为了使用宏参数, 必须牢记这奇葩的处理方式**
+- [参数](#参数)
 - [文本项](#text-item)里用尖括号表示字符串
-- [for, forc](#for-forc) 的第二个参数
 - 莫名其妙的地方: `option nokeyword: <xxx>`
 
 ### 分支
+
+*pp4, 重复. if true = 重复 1 次, if false = 重复 0 次.*
 
 ```
 if    , ife    , ifb    , ifnb    , ifdef    , ifndef    , ifidn    , ifidni    , ifdif    , ifdifi
@@ -381,13 +373,12 @@ content of str1 differs from str2
 
 参考: [textequ](#文本宏)
 
-### 循环和跳转
-
-**没有循环和跳转语句**. for, while 等关键字用于定义**重复块**, 把块里的内容重复多次; 递归调用[宏函数](#宏函数)是把宏函数[展开](#展开)若干次.
-
 ### 重复块
 
-把块内的语句就地展开指定次. 只能重复添加行, 不能往一行里重复添加片段
+*pp4, 重复.*
+
+**没有循环和跳转语句**. for, while 等关键字用于定义重复块, 把块内的语句就地展开指定次;
+递归调用[宏函数](#宏函数)是把宏函数[展开](#展开)若干次.
 
 \* *610guide p???/p187 repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm*
 
@@ -529,6 +520,9 @@ end
 ```
 ; todo: toupper
 ; ml -D s="a E" -EP dd.msm
+;
+; 难点: 怎么把一个小写字符的大写形式放入文本宏? 我不想查表. 话说回来, 宏里面怎么查表?
+; 等价问题: x = "a" 让 x 保存字符 a 的 ascii 值; 现在有 ascii 值, 怎么得到字符?
 
 ifnb s
     temp textequ <>
@@ -571,109 +565,6 @@ endm
 repeat_line_part2 textequ % 1 * \
     repeat_line_part_macro
     1
-```
-
-### 用于处理字符串的指示和预定义函数
-
-\* *610guide p???/p190 String Directives and Predefined Functions*
-
-- 指示的 return 有点不准确, 因为这 4 个指示取代了 textequ, =; catstr 和 textequ 是同义词
-- 指示是关键字, 不区分大小写; [宏函数](#宏函数)是名字, 区分大小写时 (`option casemap`, `-C[p|u|x]`) 必须匹配大小写
-- instr 的第一个参数是可选参数, 若要不提供此参数, 指示是不写, 宏函数是空逗号
-- string 下标从 1 开始
-- 宏函数版本不展开参数
-
-directive | macro function | return | usage | echo
----|---|---|---|---
-catstr ||       string | `string catstr <ab>, % 34`             | ab34
-|| @catstr  |   string | `% echo @catstr(<ab>, % 34, <???>)`    | ab34???
-instr ||        number | `number instr 3, <abcdabc>, <abc>`     | 5
-|| @instr   |   string | `% echo @instr(, <abcdabc>, <abc>)`    | 01
-sizestr ||      number | `number sizestr <abcdefg>`             | 7
-|| @sizestr |   string | `% echo @sizestr(<abcdefg>)`           | 07
-substr ||       string | `string substr <abcdefg>, 3, 2`        | cd
-|| @substr  |   string | `% echo @substr(<abcdefg>, 3)`         | cdefg
-
-```
-; 610guide p???/p192, catstr, substr
-;
-; SaveRegs - Macro to generate a push instruction for each
-; register in argument list. Saves each register name in the
-; regpushed text macro.
-regpushed TEXTEQU <>                    ;; Initialize empty string
-
-SaveRegs MACRO regs:VARARG
-    LOCAL reg
-    FOR reg, <regs>                     ;; Push each register
-        push reg                        ;; and add it to the list
-        regpushed CATSTR <reg>, <,>, regpushed
-    ENDM                                ;; Strip off last comma
-    regpushed CATSTR <!<>, regpushed    ;; Mark start of list with <
-    regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )
-    regpushed CATSTR regpushed, <!>>    ;; Mark end with >
-ENDM
-
-; RestoreRegs - Macro to generate a pop instruction for registers
-; saved by the SaveRegs macro. Restores one group of registers.
-RestoreRegs MACRO
-    LOCAL reg
-    %FOR reg, regpushed                 ;; Pop each register
-        pop reg
-    ENDM
-ENDM
-
-end
-```
-
-参考: [宏过程](#宏过程)
-
-```
-; 实现 @sizestr. ml -Zs dd.msm
-;
-; 预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
-; - 把宏放在单独的环境里执行, 此时由于没有定义宏所以也不发生展开. 依靠现在这些语法显然实现不了
-; - 模式 1 有过滤, 过滤区域的参数不展开. 计算字符个数要用循环, 正好模式 1 的 forc 不展开参数
-
-$sizestr macro a
-    local cnt
-    cnt = 0
-    forc i, <a>
-        cnt = cnt + 1
-    endm
-    exitm % cnt
-endm
-
-abc textequ <this is a long string and will surely fail both sizestr macro functions>
-
-% echo $sizestr(a<!bc><de>)     ; 5
-% echo @sizestr(a<!bc><de>)     ; 05
-% echo $sizestr(abc)            ; 3
-% echo @sizestr(abc)            ; 03
-% echo $sizestr(abc de)         ; 6
-% echo @sizestr(abc de)         ; 06
-
-; 如果要计算展开后的参数有几个 ascii 字符呢? 需要在宏内展开参数
-
-$$strlen macro a
-    local cnt
-    cnt = 0
-    % forc i, <a>
-        cnt = cnt + 1
-    endm
-    exitm % cnt
-endm
-
-% echo $$strlen(abc) ; 71
-end
-```
-
-参考: [模式 1](#模式-1), [宏函数](#宏函数)
-
-```
-; todo: 实现 @catstr
-; 难点在于 @catstr 返回一个字符串值而不是字符串变量
-
-end
 ```
 
 ### 输入输出
@@ -902,7 +793,49 @@ endif
 end
 ```
 
-### 宏参数
+### 参数
+
+参数包括宏的参数和 for, forc 的参数
+
+- 确定参数: 查找语句里的 &arg&, &arg, arg&, arg
+- 替换参数: 删除参数第 1 层尖括号, 替换参数名
+
+```
+mp macro a, b, c, d
+    echo &a& &a a& a a&&    ; 这 4 种都是参数名: &arg&, &arg, arg&, arg
+    echo b  ; 删除第 1 层尖括号
+    echo c  ; 1. 删除第 1 层尖括号, 2. % 求值, 3. ! 转义 4. 保留空格
+    echo d  ; 引号里的不动. ; 后的没输出是 echo 的问题
+
+    echo lb&&a&68   ; 拼接
+    echo a&b a&&b   ; & 仅用于隔开参数; 除非在引号里 (惰性环境) 否则两个 & 没必要
+
+    for i, b                ; for 的第 2 个参数必须有尖括号
+        echo &a& &a a& a    ; 这 4 种都是参数名: &arg&, &arg, arg&, arg
+        echo &i& &i i& i    ; 删除 <this> 的第 1 层尖括号
+        exitm
+    endm
+
+    forc i, c               ; forc 的第 2 个参数不需要尖括号, 没有尖括号时忽略空格之后的内容
+        echo i              ; 打印两行分别是 a, b; 删除 a<b> 的第 1 层尖括号
+    endm
+endm
+
+mp `xt`, <<<this>, is>>, a<b>    <<<<c>>>> ^<d<&(!*&% 1 + 2>%!>$>[, "^<d<&(!*&% 1 + 2>%!;>$>["
+end
+
+输出 Assembling: dd.msm
+`xt` `xt` `xt` `xt` `xt`&
+<<this>, is>
+ab    <<<c>>> ^d<&(*&3>>$[
+"^<d<&(!*&% 1 + 2>%!
+lb&`xt`68
+`xt`<<this>, is> `xt`<<this>, is>
+`xt` `xt` `xt` `xt`
+this this this this
+a
+b
+```
 
 我把宏参数和命令行参数放一块比了比. 命令行是程序自己处理原始命令行, masm 是 masm 处理完给你, 你没有机会拿到原始字符串,而这个处理过程有 bug:
 
@@ -915,100 +848,7 @@ cmd     space       " "                 "\""            raw string              
 masm    ,           <,>                 <!<>            cooked string (buggy)   yes
 ```
 
-#### 宏函数作参数, bug1: 后有圆括号时
-
-宏函数 f 作参数, 后面有圆括号时, 会忽略 f 和 () 之间的字符调用 f().
-
-```
-; ml -Zs dd.msm
-
-f macro
-    exitm <>
-endm
-
-mp macro a: vararg
-endm
-
-mp f, (876)
-
-end
-
-warning A4006: to many arguments in macro call
-f(1): macro called from mp(1): macro called from dd.msm(9): main line code
-
-满足下面两个条件导致 mp f, (876) 生成 f (876)
-- 876 两边有圆括号
-- f 是之前定义的宏函数; 宏过程没问题, 因为根本不会展开非行首的宏过程
-
-如何避免这莫名其妙的调用, 下面方法任选
-- f 两边加尖括号 <f>
-- f 前加 !
-
-基于下面代码做进一步试验
-
-mp macro a
-    "in mp &a"
-endm
-f macro a, b
-    "in f  &a &b"
-    exitm <4>
-endm
-mp f,,,,d,, (15, 876)ddd
-
-发现 masm 看到宏过程 mp 的参数有宏函数 - 这里是 f - 时, 从 f 开始找后圆括号, 找到后往前找前圆括号;
-如果在 f 后面找出了一对圆括号, 圆括号里的就是 f 的参数, 忽略 f 和前圆括号之间的字符; 调用 f, 结果作
-为 mp 的参数. 上面代码 -EP 报的错是
-error A2008: syntax error : in f  15 876
-error A2008: syntax error : in mp 4ddd
-
-mp 是宏函数时行为一样.
-```
-
-#### 宏函数作参数, bug2: 后无圆括号时
-
-宏函数 f 作参数, 后面没有圆括号时不发生调用, 但会把 f 后面的所有字符合成一个参数.
-
-```
-mp macro  a, b, c, d, e, f, g
-    echo [mp] a
-    echo [mp] b
-    echo [mp] c
-endm
-
-mf macro a, b, c, d, e, f, g
-    echo [mf] a
-    echo [mf] b
-    echo [mf] c
-    exitm <>
-endm
-
-mp a,  mf , slkdjfoiu, 097-98yph&nj)
-mp a, <mf>, slkdjfoiu, 097-98yph&nj)
-echo
-mf(a,  mf , slkdjfoiu, 097-98yph&nj)
-mf(a, <mf>, slkdjfoiu, 097-98yph&nj)
-echo
-mf a, (mf , slkdjfoiu, 097-98yph&nj)
-end
-
-输出
-[mp] a
-[mp] mf , slkdjfoiu, 097-98yph&nj)
-[mp]
-[mp] a
-[mp] mf
-[mp] slkdjfoiu
-
-[mf] a
-[mf] mf , slkdjfoiu, 097-98yph&nj
-[mf]
-[mf] a
-[mf] mf
-[mf] slkdjfoiu
-
-dd.msm(21): error A2048: nondigit in number
-mf a, (mf , slkdjfoiu, 097-98yph&nj) 引发上述错误. todo: 调查它
-```
+[宏函数作参数时的 bug](#宏函数作参数时的-bug)
 
 ### 两种查找文本宏和宏函数的模式
 
@@ -1320,6 +1160,123 @@ todo: 感觉模式 2 只看初始内容里的 &, 不管展开出的 &. 证明它
 end
 ```
 
+### 用于处理字符串的指示和预定义函数
+
+\* *610guide p???/p190 String Directives and Predefined Functions*
+
+- 指示的 return 有点不准确, 因为这 4 个指示取代了 textequ, =; catstr 和 textequ 是同义词
+- 指示是关键字, 不区分大小写; 宏函数是名字, 区分大小写时 (`option casemap`, `-C[p|u|x]`) 必须匹配大小写
+- instr 的第一个参数是可选参数, 若要不提供此参数, 指示是不写, 宏函数是空逗号
+- string 下标从 1 开始
+- 和其它宏函数一样, 这 4 个预定义宏函数不展开文本宏参数
+
+directive | macro function | return | usage | echo
+---|---|---|---|---
+catstr ||       string | `string catstr <ab>, % 34`             | ab34
+|| @catstr  |   string | `% echo @catstr(<ab>, % 34, <???>)`    | ab34???
+instr ||        number | `number instr 3, <abcdabc>, <abc>`     | 5
+|| @instr   |   string | `% echo @instr(, <abcdabc>, <abc>)`    | 01
+sizestr ||      number | `number sizestr <abcdefg>`             | 7
+|| @sizestr |   string | `% echo @sizestr(<abcdefg>)`           | 07
+substr ||       string | `string substr <abcdefg>, 3, 2`        | cd
+|| @substr  |   string | `% echo @substr(<abcdefg>, 3)`         | cdefg
+
+```
+; 610guide p???/p192, catstr, substr 使用示例
+;
+; SaveRegs - Macro to generate a push instruction for each
+; register in argument list. Saves each register name in the
+; regpushed text macro.
+regpushed TEXTEQU <>                    ;; Initialize empty string
+
+SaveRegs MACRO regs:VARARG
+    LOCAL reg
+    FOR reg, <regs>                     ;; Push each register
+        push reg                        ;; and add it to the list
+        regpushed CATSTR <reg>, <,>, regpushed
+    ENDM                                ;; Strip off last comma
+    regpushed CATSTR <!<>, regpushed    ;; Mark start of list with <
+    regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )
+    regpushed CATSTR regpushed, <!>>    ;; Mark end with >
+ENDM
+
+; RestoreRegs - Macro to generate a pop instruction for registers
+; saved by the SaveRegs macro. Restores one group of registers.
+RestoreRegs MACRO
+    LOCAL reg
+    %FOR reg, regpushed                 ;; Pop each register
+        pop reg
+    ENDM
+ENDM
+
+end
+```
+
+```
+; 实现 @sizestr. ml -Zs dd.msm
+;
+; 预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
+; - 把宏放在单独的环境里执行, 此时由于没有定义宏所以也不发生展开. 依靠现在这些语法显然实现不了
+; - 模式 1 有过滤, 过滤区域的参数不展开. 计算字符个数要用循环, 正好模式 1 的 forc 不展开参数
+
+$sizestr macro a
+    local cnt
+    cnt = 0
+    forc i, <a>
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+abc textequ <this is a long string and will surely fail both sizestr macro functions>
+
+% echo $sizestr(a<!bc><de>)     ; 5
+% echo @sizestr(a<!bc><de>)     ; 05
+% echo $sizestr(abc)            ; 3
+% echo @sizestr(abc)            ; 03
+% echo $sizestr(abc de)         ; 6
+% echo @sizestr(abc de)         ; 06
+
+; 如果要计算展开后的参数有几个 ascii 字符呢? 需要在宏内展开参数
+
+$$strlen macro a
+    local cnt
+    cnt = 0
+    % forc i, <a>
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+% echo $$strlen(abc) ; 71
+end
+```
+
+```
+实现 @catstr.
+
+1. @catstr 返回一个字符串值而不是字符串变量. 这个返回文本宏就行了
+2. 要接受参数, 只能是宏过程或宏函数. 宏过程没法返回值, 只能用宏函数. 参数数量不定, 只能用 vararg,
+丢一层尖括号; 拼接字符串时问题不大, 要求调用处在必要时给文本加尖括号. vararg 里保存的是扒了一层尖括
+号并混入逗号的串, 这就是参数的最完整形式. 接下去既不能用 for 也不能调用函数, 因为会再丢一层尖括号.
+那只剩 forc 能用了
+3. 引号和尖括号里的逗号不分开参数, 尖括号可以嵌套; 所以用 sq, dq 表示单, 双引号, 取值 0 或 1;
+用 ab 表示尖括号的嵌套等级
+
+在试了几个串后我写下了这个串
+<!<!<!<!<!<ab, cd>, 34
+vararg 拿到的是 `<<<<<ab, cd,34`, @catstr 输出 `<<<<<ab, cd34`
+问题来了: 该保留哪些逗号?
+
+我刚才说 vararg 丢一层尖括号在拼接字符串时问题不大? 事实证明我错了, 丢尖括号问题太他妈大了!
+
+仔细想想丢尖括号只是小问题, 根本问题在于 vararg 是 1 个参数, 不可能把它还原到调用时的状态, 它不是
+json 那样的转义字符串. 多个参数合并为 1 个 vararg 时丢失了参数个数这个信息, 相比之下丢一层尖括号根
+本不算事.
+
+由于无法取得传入的参数, 无法实现 catstr.
+```
+
 ### opattr, @cpu, pushcontext, popcontext
 
 \* *610guide p???/p196*
@@ -1451,14 +1408,23 @@ endm
 masm 提供一个多行且复杂的结构用来定义宏函数, 用户在里面填入内容; 定义的宏函数是个单行且简单的结构 名字 (参数, 参数, ...),
 调用结果是个单行串. 退化体现在哪些地方?
 
-- 具有特殊意义的符号 `macro : req = vararg local exitm endm` 不能用了
-- 多行变单行了
+- 定义出来的都是名字, 名字只能用名字允许的那些字符
+- 关键字两边都是参数而名字只有右边是参数; 无法定义类似 `macro` 的 tag: left `tag` right
+- 参数是处理过的, 拿不到原始串
+- 多行变单行了, 无法定义起始/结束括号: `tag` ... `end tag`/`endtag`
+- ```
+    below is keyword                below is user defined name (udn)
+    ccc begin-keyword ccc           ccc begin-name ccc end-name ccc
+    ccc
+    end-keyword x
+    * c = character, x = no c allowed
+    ```
+
+keyword `macro` 定义了这些符号 `: req = vararg local exitm endm`, udn `tag` 可以定义自己的
 
 退化的后果是无法用它提供的语法创造同样的语法, 更不用说新的语法. 当然这本来也不是 masm 的目标, 只是我自己的一个想法.
 
-- 定义出来的都是名字, 名字只能用名字允许的那些字符
-- 无法定义类似 `macro` 的 tag: some-name `tag` xxx, [other symbols...]. macro 两边都是参数而 tag 只接受右边的参数
-- 无法定义起始/结束括号: `tag` ... `end tag`/`endtag`
+**进化?** 显然进化就等于自己写编译器了, 应该不是啥好事, 除非语法简单有效.
 
 ### -EP 的错误输出? 执行结果正确
 
@@ -1552,7 +1518,6 @@ f macro height, depth: =<0>, nodetype: =<root>
 endm
 
 f(2)
-
 end
 
 bug
@@ -1561,6 +1526,27 @@ bug
     用 f(19) 还能看到 error A2123: text macro nesting level too deep; nl 确实超了, 但 text macro 是哪来的?
     是不是说, A1007 是递归调用宏函数才会出的错? A2123 是展开文本宏和宏函数都会出的错?
 - 多试几个数你能看到好几种编译错误 - 全是 masm 自己造成的
+
+f 内拼接字符串时 dep1 是 local 变量名而不是值, 所以 echo 前面加了 %; 要传值可以这么写
+
+f macro height, depth: =<0>, nodetype: =<root>
+    local dep1, s
+
+    dep1 textequ % depth + 1
+    s textequ <>
+
+    echo nl depth, nodetype
+
+    if dep1 lt height
+        s textequ <f(height, >, dep1, <, branch1) f(height, >, dep1, <, branch2) f(height, >, dep1, <, branch3)>
+    elseif dep1 eq height
+        s textequ <f(height, >, dep1, <, branch4) f(height, >, dep1, <, branch5)>
+    elseif dep1 - height eq 1
+        s textequ <f(height, >, dep1, <, leaf)>
+    endif
+
+    exitm s
+endm
 
 思考
 上面用的是宏函数. 能不能控制文本宏的递归次数, 或者组合多个其它文本宏? 如果接受参数可能能, 但它不接受参数所以可能不能
@@ -1770,9 +1756,11 @@ s1 textequ <this is abc>
 
 ; 看看它返回的啥
 % echo "&call_@sizestr_with_arg_expanded(s1)"
-; 输出 "011", 说明函数调用发生在 exitm 处, 而不是返回之后; 它返回了一个值, 非常好
+; 输出 "011", 说明函数调用发生在 exitm 处而不是返回之后; 它返回一个值而不是变量名, 非常好
 end
 ```
+
+\* *ifdef 判断名字是否定义了. 定义的名字不一定是文本项但该函数只能处理文本项否则报错. 我觉得可以接受.*
 
 当然也有其他的想法, 比如先阻止函数调用, 替换参数后再形成函数调用:
 
@@ -1863,7 +1851,9 @@ f_a = this is abc, f_b = 2ndargreplaced, f_c = h, there
 
 \* *[No Old Maps Actually Say 'Here Be Dragons'](https://www.theatlantic.com/technology/archive/2013/12/no-old-maps-actually-say-here-be-dragons/282267/)*
 
-### douglas-crockford/jsgoodpart/memoizer
+### Douglas Crockford: memoizer
+
+douglas-crockford/javascript-the-good-parts/4.15-memoizer
 
 🚧 *under construction*
 
@@ -2051,9 +2041,6 @@ particular machine.
 ; 这里计算参数个数的 @ArgCount 宏不对
 ; - @ArgCount(1, <2, 3>, 4) 是 3 个参数, 它返回 4
 ; - @ArgCount(<1, 2, 3, 4>) 是 1 个参数, 它返回 4
-;
-; 问题在于 vararg 参数里保存的是处理后的参数列表, 换句话说用的时候就是错的. 具名参数处理一下没啥问题, 还是能分给正确的
-; 具名参数, 变参就没法区分了
 
 @ArgCount MACRO arglist:VARARG
     LOCAL count
@@ -2088,6 +2075,102 @@ ENDM
 ENDM
 
 end
+```
+
+问题在于 vararg 是多个参数删除第 1 层尖括号后加逗号合并成的 1 个参数, 换句话说用的时候就是错的.
+具名参数去尖括号没啥问题, 还是能分给正确的参数; 合并之后就没法区分了.
+
+### 宏函数作参数时的 bug
+
+**bug1**: 宏函数 f 作参数, 后面有圆括号时, 会忽略 f 和 () 之间的字符调用 f().
+
+```
+; ml -Zs dd.msm
+
+f macro
+    exitm <>
+endm
+
+mp macro a: vararg
+endm
+
+mp f, (876)
+
+end
+
+warning A4006: to many arguments in macro call
+f(1): macro called from mp(1): macro called from dd.msm(9): main line code
+
+满足下面两个条件导致 mp f, (876) 生成 f (876)
+- 876 两边有圆括号
+- f 是之前定义的宏函数; 宏过程没问题, 因为根本不会展开非行首的宏过程
+
+如何避免这莫名其妙的调用, 下面方法任选
+- f 两边加尖括号 <f>
+- f 前加 !
+
+基于下面代码做进一步试验
+
+mp macro a
+    "in mp &a"
+endm
+f macro a, b
+    "in f  &a &b"
+    exitm <4>
+endm
+mp f,,,,d,, (15, 876)ddd
+
+发现 masm 看到宏过程 mp 的参数有宏函数 - 这里是 f - 时, 从 f 开始找后圆括号, 找到后往前找前圆括号;
+如果在 f 后面找出了一对圆括号, 圆括号里的就是 f 的参数, 忽略 f 和前圆括号之间的字符; 调用 f, 结果作
+为 mp 的参数. 上面代码 -EP 报的错是
+error A2008: syntax error : in f  15 876
+error A2008: syntax error : in mp 4ddd
+
+mp 是宏函数时行为一样.
+```
+
+**bug2**: 宏函数 f 作参数, 后面没有圆括号时不发生调用, 但会把 f 后面的所有字符合成一个参数.
+
+```
+mp macro  a, b, c, d, e, f, g
+    echo [mp] a
+    echo [mp] b
+    echo [mp] c
+endm
+
+mf macro a, b, c, d, e, f, g
+    echo [mf] a
+    echo [mf] b
+    echo [mf] c
+    exitm <>
+endm
+
+mp a,  mf , slkdjfoiu, 097-98yph&nj)
+mp a, <mf>, slkdjfoiu, 097-98yph&nj)
+echo
+mf(a,  mf , slkdjfoiu, 097-98yph&nj)
+mf(a, <mf>, slkdjfoiu, 097-98yph&nj)
+echo
+mf a, (mf , slkdjfoiu, 097-98yph&nj)
+end
+
+输出
+[mp] a
+[mp] mf , slkdjfoiu, 097-98yph&nj)
+[mp]
+[mp] a
+[mp] mf
+[mp] slkdjfoiu
+
+[mf] a
+[mf] mf , slkdjfoiu, 097-98yph&nj
+[mf]
+[mf] a
+[mf] mf
+[mf] slkdjfoiu
+
+dd.msm(21): error A2048: nondigit in number
+mf a, (mf , slkdjfoiu, 097-98yph&nj) 引发上述错误. todo: 调查它
 ```
 
 ## 早期代码
