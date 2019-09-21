@@ -178,6 +178,7 @@ endif
     - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
     - [前序遍历, 以及 masm 令人着急的处理能力](#前序遍历-以及-masm-令人着急的处理能力)
     - [模式 2 不撮合](#模式-2-不撮合)
+    - [激活](#激活)
 - [代码演示](#代码演示)
     - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
@@ -1558,6 +1559,50 @@ end
 如果抛开 masm 的从左到右, %, 文本宏死区, ... 去解释输出, 当然能列出很多种可能; 但在 masm 里, 上面的分析是唯一的可能.
 ```
 
+### 激活
+
+拼接字符串时想到个问题: 想从变量拼接名字, 又不想展开右边, 该怎么做?
+
+```
+f macro i, s: req
+    local prefix, middle, activator
+    prefix textequ s ; prefix (??0000) = value of abc = ddd
+
+    ; 我想拼接左边, 不展开右边, i.e. ddd$3 textequ abc, how?
+    ; % prefix&&$&i textequ s       ; fail: ddd$3    textequ ddd
+    @catstr(prefix, $, i) textequ s ; fail: ??0000$3 textequ abc
+
+    ; 这时想起了拼接函数调用字符串
+    middle textequ <@catstr(>, prefix, <, $&i)>
+    ; 虽然 middle 的值是 @catstr(ddd, $3), 但下面只是替换了参数, 并没有调用它
+    middle textequ s ; fail: ??0001 textequ abc
+
+    ; middle() 明显不对, 但意外发现展开成了 ddd$3()
+    middle textequ <@catstr(>, prefix, <, $&i)>
+    ; middle() textequ s ; fail: ddd$3() textequ abc
+
+    ; 是圆括号激发了展开吗? 比如 ??0001() 由于后跟圆括号所以导致调用函数?
+    ; 但 middle (??0001) 的值是 @catstr(ddd, $3), 没法后跟圆括号了. 放到函数里试试?
+    activator macro
+        local t
+        t textequ <@catstr(>, prefix, <, $&i)>
+        exitm t ; eval
+    endm
+
+    ; succeed: ddd$3 textequ abc
+    activator() textequ s
+endm
+
+abc textequ <ddd>
+f 3, abc
+%  echo abc&$3  ; ddd$3
+%% echo abc&$3  ; ddd
+end
+```
+
+模式 1 下 textequ 左边的文本宏 s 不会展开, 想展开需要放到函数 f 中, 比如 exitm s, 然后 `f() textequ <xxx>`.
+展开本不展开的文本宏称为激活.
+
 ## 代码演示
 
 ### 返回函数名
@@ -1983,10 +2028,10 @@ end
 
 为什么不把 newArray 定义为宏函数, 然后写 arr1 textequ newArray(12, 5, -8) 呢? 因为
 
-- 那样 arr1 就是个文本项, 撮合调用为了避免 A2039 需要返回文本宏, 麻烦
+- 那样 arr1 就是个字符串, 发生撮合, 为避免 A2039 需要返回文本宏, 麻烦
 - 由于模式 2 不撮合, % echo arr1(5) 得到 echo ??00nn(5), 想打印值得 %% echo arr1(5)
 
-返回文本宏不好, 那为什么不能让 newArray 返回宏函数然后写 arr1 = newArray() 然后 arr1(6) 呢?
+返回字符串不好, 那为什么不能让 newArray 返回宏函数然后写 arr1 = newArray() 然后 arr1(6) 呢?
 
 - ... \**face slap** 能吗?
 
