@@ -191,6 +191,7 @@ endif
     - [fatal error DX1020](#fatal-error-dx1020)
     - [vararg](#vararg)
     - [宏函数作参数时的 bug](#宏函数作参数时的-bug)
+    - [预定义的字符串函数参数可以是文本宏?](#预定义的字符串函数参数可以是文本宏)
 - [早期代码](#早期代码)
     - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
     - [宏函数的各种失败展开](#宏函数的各种失败展开)
@@ -1182,37 +1183,6 @@ substr ||       string | `string substr <abcdefg>, 3, 2`        | cd
 || @substr  |   string | `% echo @substr(<abcdefg>, 3)`         | cdefg
 
 ```
-; 610guide p???/p192, catstr, substr 使用示例
-;
-; SaveRegs - Macro to generate a push instruction for each
-; register in argument list. Saves each register name in the
-; regpushed text macro.
-regpushed TEXTEQU <>                    ;; Initialize empty string
-
-SaveRegs MACRO regs:VARARG
-    LOCAL reg
-    FOR reg, <regs>                     ;; Push each register
-        push reg                        ;; and add it to the list
-        regpushed CATSTR <reg>, <,>, regpushed
-    ENDM                                ;; Strip off last comma
-    regpushed CATSTR <!<>, regpushed    ;; Mark start of list with <
-    regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )
-    regpushed CATSTR regpushed, <!>>    ;; Mark end with >
-ENDM
-
-; RestoreRegs - Macro to generate a pop instruction for registers
-; saved by the SaveRegs macro. Restores one group of registers.
-RestoreRegs MACRO
-    LOCAL reg
-    %FOR reg, regpushed                 ;; Pop each register
-        pop reg
-    ENDM
-ENDM
-
-end
-```
-
-```
 ; 实现 @sizestr. ml -Zs dd.msm
 ;
 ; 预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
@@ -1858,12 +1828,6 @@ douglas-crockford/javascript-the-good-parts/4.15-memoizer
 🚧 *under construction*
 
 ```
-
-数组
-- 字符串 a, b, c, d, ...: 每次都要从逗号解析, 效率低
-- 字符串 000a000b000c...: 固定宽度, 不需要找逗号, 浪费容量
-- 从 local 符号拼接名字, ??0005&3: 最好的办法
-
 var memoizer = function (memo, fundamental) {
     var shell = function (n) {
         var result = memo[n];
@@ -1889,22 +1853,42 @@ var factorial = memoizer([1, 1], function (shell, n) {
     return n * shell(n - 1);
 });
 
-
 fibonacci(10)
 factorial(10)
+```
 
-// memoizer 把函数拆成了两部分
-// 1. n = 特定值时
-// 2. n 可以递推时
-// 因此
+函数 memoizer(arr, f) 返回函数 shell(n), 让 shell 捕获自己的两个参数. 参数 1 是整数区间 [a, b], n 在这个区间时
+shell 返回 `arr[n]`, 这个值是调用 memoizer 前就知道并传给 memoizer 的; n 不在这个区间时 shell 用 memoizer 的第
+2 个参数 f(shell, n) 求 `arr[n]`; f 如果递归, 必须调用 shell 以使用 shell 里的查 arr 以终止递归的逻辑, 不能直接
+调用自身. memoizer, shell, f 这 3 个函数紧密耦合, 必须把它们放在一块理解, 没有哪个函数能独立出来.
+
+memoizer 有任何用武之地吗? 斐波那契, 阶乘应该不会用它, 非常的绕; 我估计凡是递推公式都不会用它. 递推公式的两种计算方法,
+循环和递归, 哪一个都比他好. 除开递推公式还有其它地方需要它吗?
+
+那么为什么写这种东西? 咱试着实现计算递推数列的第 n 项, 首先想到的是函数 f(n), 里面有个缓存, 这就已经是 memoization 了.
+完成?
+
+
+
+ f(???) 返回 g(n), g 计算递推数列的第 n 项.
+```
+function f(init, f) {
+
+}
+
+```
+
+那么价值在哪? 
+```
+// memoizer 把函数拆成了两部分: 1. n = 特定值时, 2. n 可以递推时. 因此
 // var fibonacci = memoizer([0, 1], function (shell, n) {
 //     return shell(n - 1) + shell(n - 2);
 // });
-// 是说我想生成一个函数 fibonacci，该函数在 n = 0，1 时分别返回 0，1，
+// 是说我想生成一个函数 fibonacci, 该函数在 n = 0, 1 时分别返回 0, 1, 
 // n > 1 时返回 fibonacci(n - 1) + fibonacci(n - 2)
 //
-// 由于不能无条件地运用 f(n) = f(n - 1) + f(n - 2) 所以搞了个变量 shell，把公式变成
-// shell(n - 1) + shell(n - 2)，shell 在 n 可以递推时递推，不可递推时采取其他措施。
+// 由于不能无条件地运用 f(n) = f(n - 1) + f(n - 2) 所以搞了个变量 shell, 把公式变成
+// shell(n - 1) + shell(n - 2), shell 在 n 可以递推时递推, 不可递推时采取其他措施.
 // 如果把 memoizer 写成下面那样则会导致在 f 处无限循环
 //
 // function memoizer(memo, fundamental) {
@@ -1924,9 +1908,14 @@ factorial(10)
 //     return f(n - 1) + f(n - 2);
 // });
 //
-// memoizer 把一个完整过程拆成了两部分，在给 memoizer 传递参数时可能会让人迷惑。
-// memoizer 的好处是在内部实现了一个缓存从而能加速递归函数的执行。
+// memoizer 把一个完整过程拆成了两部分, 在给 memoizer 传递参数时可能会让人迷惑.
+// memoizer 的好处是在内部实现了一个缓存从而能加速递归函数的执行.
 ```
+
+数组
+- 字符串 a, b, c, d, ...: 每次都要从逗号解析, 效率低
+- 字符串 000a000b000c...: 固定宽度, 不需要找逗号, 浪费容量
+- 从 local 符号拼接名字, ??0005&3: 最好的办法
 
 ## 610guide 和 masm 的 bug
 
@@ -2172,6 +2161,47 @@ end
 dd.msm(21): error A2048: nondigit in number
 mf a, (mf , slkdjfoiu, 097-98yph&nj) 引发上述错误. todo: 调查它
 ```
+
+### 预定义的字符串函数参数可以是文本宏?
+
+610guide p???/p191<br>
+Each string directive and predefined function acts on a string, which can be any textItem.
+The textItem can be ... the name of a text macro, ...
+
+```
+; 610guide p???/p192, catstr, substr, @SizeStr 使用示例
+;
+; SaveRegs - Macro to generate a push instruction for each
+; register in argument list. Saves each register name in the
+; regpushed text macro.
+regpushed TEXTEQU <>                    ;; Initialize empty string
+
+SaveRegs MACRO regs:VARARG
+    LOCAL reg
+    FOR reg, <regs>                     ;; Push each register
+        push reg                        ;; and add it to the list
+        regpushed CATSTR <reg>, <,>, regpushed
+    ENDM                                ;; Strip off last comma
+    regpushed CATSTR <!<>, regpushed    ;; Mark start of list with <
+    regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )
+    regpushed CATSTR regpushed, <!>>    ;; Mark end with >
+ENDM
+
+; RestoreRegs - Macro to generate a pop instruction for registers
+; saved by the SaveRegs macro. Restores one group of registers.
+RestoreRegs MACRO
+    LOCAL reg
+    %FOR reg, regpushed                 ;; Pop each register
+        pop reg
+    ENDM
+ENDM
+
+end
+```
+
+上面的 SaveRegs 注释掉 push 用 -EP 编译可以看到 @SizeStr( regpushed ) 返回的是 9, 字符串 `regpushed` 的长度.
+这种说得跟真的一样, 其实跟真的不一样的现象让我搞不清究竟是文档的 bug 还是 masm 的 bug. 仔细看的话发现
+`regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )` 这句话就跟开玩笑一样, 这句话意义在哪? 暴露 bug?
 
 ## 早期代码
 
