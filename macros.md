@@ -182,7 +182,7 @@ endif
     - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
     - [文本宏死区展开](#文本宏死区展开)
-    - [Douglas Crockford: memoizer](#douglas-crockford-memoizer)
+    - [Douglas Crockford: Memoization](#douglas-crockford-memoization)
 - [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
     - [闪现](#闪现)
     - [name TEXTEQU macroId?](#name-textequ-macroId)
@@ -192,10 +192,14 @@ endif
     - [vararg](#vararg)
     - [宏函数作参数时的 bug](#宏函数作参数时的-bug)
     - [预定义的字符串函数参数可以是文本宏?](#预定义的字符串函数参数可以是文本宏)
+    - [hoisting](#hoisting)
 - [早期代码](#早期代码)
     - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
     - [宏函数的各种失败展开](#宏函数的各种失败展开)
 - [致谢](#致谢)
+- 合集: 热身运动, 💀 HBD & hold your breath
+    - [拼接字符串](#拼接字符串)
+    - [数组](#数组)
 
 ## 预处理
 
@@ -294,7 +298,7 @@ char | ascii | 解释
 
 - [参数](#参数)
 - [文本项](#text-item)里用尖括号表示字符串
-- 莫名其妙的地方: `option nokeyword: <xxx>`
+- 莫名其妙的地方: `.err`, `option nokeyword: <xxx>`
 
 ### 分支
 
@@ -1749,7 +1753,7 @@ arg textequ <1234567890>
 end
 ```
 
-热身运动: 拼接字符串 (?!?! 💀 Here Be Dragons)
+热身运动 (?!?! 💀 Here Be Dragons): <span id=拼接字符串>拼接字符串</span>
 
 ```
 x textequ <a>
@@ -1821,25 +1825,20 @@ f_a = this is abc, f_b = 2ndargreplaced, f_c = h, there
 
 \* *[No Old Maps Actually Say 'Here Be Dragons'](https://www.theatlantic.com/technology/archive/2013/12/no-old-maps-actually-say-here-be-dragons/282267/)*
 
-### Douglas Crockford: memoizer
+### Douglas Crockford: Memoization
 
-douglas-crockford/javascript-the-good-parts/4.15-memoizer
-
-🚧 *under construction*
+douglas-crockford/javascript-the-good-parts/4.15-memoization
 
 ```
 var memoizer = function (memo, fundamental) {
     var shell = function (n) {
         var result = memo[n];
-
         if (typeof result !== 'number') {
             result = fundamental(shell, n);
             memo[n] = result;
         }
-
         return result;
     };
-
     return shell;
 };
 
@@ -1857,65 +1856,187 @@ fibonacci(10)
 factorial(10)
 ```
 
-函数 memoizer(arr, f) 返回函数 shell(n), 让 shell 捕获自己的两个参数. 参数 1 是整数区间 [a, b], n 在这个区间时
-shell 返回 `arr[n]`, 这个值是调用 memoizer 前就知道并传给 memoizer 的; n 不在这个区间时 shell 用 memoizer 的第
-2 个参数 f(shell, n) 求 `arr[n]`; f 如果递归, 必须调用 shell 以使用 shell 里的查 arr 以终止递归的逻辑, 不能直接
-调用自身. memoizer, shell, f 这 3 个函数紧密耦合, 必须把它们放在一块理解, 没有哪个函数能独立出来.
+函数 memoizer(arr, f) 返回函数 shell(n), 让 shell 捕获自己的两个参数. 参数 1 是整数区间 [a, b], n 在这个区间时 shell
+返回 `arr[n]`, 这个值是调用 memoizer 前就知道并传给 memoizer 的; n 不在这个区间时 shell 用 memoizer 的第 2 个参数
+f(shell, n) 求 `arr[n]`; f 要想递归必须调用 shell 以使用 shell 里的查 arr 以终止递归的逻辑, 不能直接调用自身.
+memoizer, shell, f 这 3 个函数紧密耦合, 必须把它们放在一块理解, 没有哪个函数能独立出来.
 
-memoizer 有任何用武之地吗? 斐波那契, 阶乘应该不会用它, 非常的绕; 我估计凡是递推公式都不会用它. 递推公式的两种计算方法,
-循环和递归, 哪一个都比他好. 除开递推公式还有其它地方需要它吗?
+memoizer 有任何用武之地吗? 斐波那契, 阶乘应该不会用它, 非常的绕; 我估计凡是递推公式都不会用它, 递推公式的两种计算方法,
+循环和递归, 哪一个都比它好. 除开递推公式我也想不出有啥地方需要它.
 
-那么为什么写这种东西? 咱试着实现计算递推数列的第 n 项, 首先想到的是函数 f(n), 里面有个缓存, 这就已经是 memoization 了.
-完成?
+那为什么写这种东西? 我只能翻开电子书再看一遍.
 
+javascript the good parts, 4.15 记忆
 
+fibonacci 递归
 
- f(???) 返回 g(n), g 计算递推数列的第 n 项.
 ```
-function f(init, f) {
+var fibonacci = function (n) {
+    return n < 2 ? n : fibonacci(n - 1) + fibonacci(n - 2);
+};
 
+for (var i = 0; i <= 10; i += 1) {
+    document.writeln('// ' + i + ': ' + fibonacci(i));
 }
-
 ```
 
-那么价值在哪? 
+为避免递归中的重复计算, 让函数捕获一个数组用来缓存计算结果.
+
+- 为什么要捕获, 函数局部变量不行吗?
+    - 因为想递归调用函数, 递归里的所有调用都想使用这个数组
+- 那为啥不把数组作为递归时的参数传给函数, 而非得捕获呢?
+    - 呃... \**face slap** "让你丫不戴帽子!"
+
+好, 既然是捕获就需要把函数套在函数里, 这个套子存在的唯一意义是提供被捕获的变量, 所以弄成一个立即调用的匿名函数,
+寄希望于可以让它不是那么显眼. 这已经开始恶心了, 但程度可以忍受. necessary evil, 完全可以忍受, happily accepted.
+
 ```
-// memoizer 把函数拆成了两部分: 1. n = 特定值时, 2. n 可以递推时. 因此
-// var fibonacci = memoizer([0, 1], function (shell, n) {
-//     return shell(n - 1) + shell(n - 2);
-// });
-// 是说我想生成一个函数 fibonacci, 该函数在 n = 0, 1 时分别返回 0, 1, 
-// n > 1 时返回 fibonacci(n - 1) + fibonacci(n - 2)
-//
-// 由于不能无条件地运用 f(n) = f(n - 1) + f(n - 2) 所以搞了个变量 shell, 把公式变成
-// shell(n - 1) + shell(n - 2), shell 在 n 可以递推时递推, 不可递推时采取其他措施.
-// 如果把 memoizer 写成下面那样则会导致在 f 处无限循环
-//
-// function memoizer(memo, fundamental) {
-//     return function (n) {
-//         var result = memo[n];
-//
-//         if (typeof result !== 'number') {
-//             result = fundamental(n);
-//             memo[n] = result;
-//         }
-//
-//         return result;
-//     };
-// }
-//
-// var fibonacci = memoizer([0, 1], function f(n) {
-//     return f(n - 1) + f(n - 2);
-// });
-//
-// memoizer 把一个完整过程拆成了两部分, 在给 memoizer 传递参数时可能会让人迷惑.
-// memoizer 的好处是在内部实现了一个缓存从而能加速递归函数的执行.
+var fibonacci = function (  ) {
+    var memo = [0, 1];
+    var fib = function (n) {
+        var result = memo[n];
+        if (typeof result !== 'number') {
+            result = fib(n - 1) + fib(n - 2);
+            memo[n] = result;
+        }
+        return result;
+    };
+    return fib;
+}(  );
 ```
 
-数组
-- 字符串 a, b, c, d, ...: 每次都要从逗号解析, 效率低
-- 字符串 000a000b000c...: 固定宽度, 不需要找逗号, 浪费容量
-- 从 local 符号拼接名字, ??0005&3: 最好的办法
+现在是 2019 年, 咱们暂时回到 20 年前 (*左右*), 到 crockford 身边看一看
+
+```
+// crockford 一观察发现下列模式...                 "呦? 两个尖括号可以是变量?", 于是...        "但 f 还想重用 shell 的 if 和 arr!", 于是...
+var shell = function (  ) {                     var shell = function (arr, f) {         ...
+    var arr = <some initial array>;                 <deleted since redundant>
+    var calc = function (n) {                       ...                                     ...
+        var result = arr[n];                            ...                                     ...
+        if (typeof result !== 'number') {               ...                                     ...
+            result = <mess with n, calc(n)>;                result = f(n);                          result = f(n, shell);
+            arr[n] = result;                                ...                                     ...
+        }                                               ...                                     ...
+        return result;                                  ...                                     ...
+    };                                              ...                                     ...
+    return calc;                                    ...                                     ...
+}(  );                                          ...                                     ...
+
+// 于是, 这是经过前面 3 步形成的函数 shell...       这是本节一开始给出的书里的代码...
+var shell = function (arr, f) {                 var memoizer = function (memo, fundamental) {                                           
+    var calc = function (n) {                       var shell = function (n) {                                           
+        var result = arr[n];                            var result = memo[n];                                           
+        if (typeof result !== 'number') {               if (typeof result !== 'number') {                                                       
+            result = f(n, shell);                           result = fundamental(shell, n);                                               
+            arr[n] = result;                                memo[n] = result;                                           
+        }                                               }                       
+        return result;                                  return result;                                   
+    };                                              };                   
+    return calc;                                    return shell;                               
+}(  );                                          };                   
+```
+
+你能找出上面左右两段代码的不同吗?
+
+重读 js good parts 后我再次理解 (首次记起) 了 memoizer, 它就是为了给递归调用提供一个共享数组 - 以一种扭曲的方式. 换我来写, 能写的更好吗?
+
+但修改 memoizer 的事不在这里做, 这里要做的是用 masm 的宏实现 crockford 的 memoizer.
+
+热身运动 (... HBD anyone??): <span id=数组>数组</span>
+
+- 保存为字符串 a, b, c, d, ...: 每次都要从逗号解析, 效率低
+- 保存为字符串 000a000b000c...: 固定宽度, 不需要找逗号, 浪费容量
+- 从 local 符号拼接名字 ??0005&3: 最好的办法
+
+```
+newArray macro arr, rest: vararg
+    local prefix, c
+
+    c textequ <0>
+
+    for i, <rest>
+        % prefix&&&c = i
+        c textequ % c + 1
+    endm
+
+    arr macro i, val
+        ifnb <val>
+            prefix&&i = val
+            exitm <>
+        elseifdef prefix&&i
+            exitm % prefix&&i
+        else
+            exitm <>
+        endif
+    endm
+endm
+
+somenumber = 3
+newArray arr1, 1, somenumber
+
+arr1(4, 34)
+%echo arr1(0) arr1(1) arr1(2) arr1(3) arr1(4)   ; 1 3   34
+end
+```
+
+**注意** 函数 arr 没有确保 i 是整数
+
+为什么不把 newArray 定义为宏函数, 然后写 arr1 textequ newArray(12, 5, -8) 呢? 因为
+
+- 那样 arr1 就是个文本项, 撮合调用为了避免 A2039 需要返回文本宏, 麻烦
+- 由于模式 2 不撮合, % echo arr1(5) 得到 echo ??00nn(5), 想打印值得 %% echo arr1(5)
+
+返回文本宏不好, 那为什么不能让 newArray 返回宏函数然后写 arr1 = newArray() 然后 arr1(6) 呢?
+
+- ... \**face slap** 能吗?
+
+memoizer 就没那么多顾忌了, 反正也不会用它, 仅拿来练习, 所以让他返回函数名.
+
+```
+; ml -D n=10 -Zs dd.msm
+
+; 在此处粘贴 newArray 的定义
+
+memoizer macro memo, f
+    local shell
+
+    shell macro n
+        local result
+
+        result textequ memo(n)
+
+        ifb result
+            result textequ f(<shell>, n)
+            memo(n, result)
+        endif
+
+        exitm result
+    endm
+
+    exitm <shell>
+endm
+
+fib macro shell, n
+    exitm % shell(% n - 1) + shell(% n - 2)
+endm
+newArray fibarr, 0, 1
+fibonacci textequ memoizer(<fibarr>, <fib>)
+
+fac macro shell, n
+    exitm % n * shell(% n - 1)
+endm
+newArray facarr, 1, 1
+factorial textequ memoizer(<facarr>, <fac>)
+
+ifdef n
+    %% echo fibonacci (n) factorial (n)
+else
+    %% echo fibonacci(19) factorial(12)
+endif
+end
+```
+
+**注意** 函数 fib, fac 没有确保 n 在正确的区间, crockford 的原文也没有确保这点.
 
 ## 610guide 和 masm 的 bug
 
@@ -2201,7 +2322,43 @@ end
 
 上面的 SaveRegs 注释掉 push 用 -EP 编译可以看到 @SizeStr( regpushed ) 返回的是 9, 字符串 `regpushed` 的长度.
 这种说得跟真的一样, 其实跟真的不一样的现象让我搞不清究竟是文档的 bug 还是 masm 的 bug. 仔细看的话发现
-`regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )` 这句话就跟开玩笑一样, 这句话意义在哪? 暴露 bug?
+`regpushed SUBSTR regpushed, 1, @SizeStr( regpushed )` 这句话就跟开玩笑一样, 意义在哪? 暴露 bug?
+
+### hoisting
+
+js 有 hoisting, masm 也有 hoisting? masm 有, visual c++ 也有; 坏消息是, 它们皆是作为 bug 而存在.
+
+```
+f macro a
+    x = a
+
+    ifdef x
+        echo x is defined
+    else
+        echo x is not defined
+    endif
+endm
+
+f tt
+
+tt = 3
+end
+```
+
+`ml -Zs dd.msm` 输出
+```
+x is not defined
+```
+
+这个情况似乎就属于前面说过的 [masm 忽略错误](#masm-忽略错误); 可删掉 end 前的 tt = 3, `ml -Zs dd.msm` 输出
+```
+x is not defined
+dd.msm(14): error A2006: undefined symbol : tt
+ f(1): Macro Called From
+  dd.msm(14): Main Line Code
+```
+
+显然 A2006 和 if 对 `defined` 有不同看法.
 
 ## 早期代码
 
@@ -2297,6 +2454,8 @@ end
 ```
 
 ## 致谢
+
+🚧 *under construction*
 
 2019.9.14 下午, 和[俞悦](https://github.com/josephyu19850119)讨论后做出下列修改, 并从 txt 改为 md
 

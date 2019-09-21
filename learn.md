@@ -179,6 +179,7 @@ masm 命令行开关有 5 种作用范围
 
 3. 其后的所有文件
 -coff       ml 6, 14. ml 14 default
+-D          ml 6, 14; ml64 14.
 -EP         ml 6, 14?; ml64 14?. 和 -Zs 相似在也不生成 obj
 -omf        ml 14. ml 6 imply
 -Zs         ml 6, 14; ml64 14. absorbs -c
