@@ -178,11 +178,10 @@ endif
     - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
     - [前序遍历, 以及 masm 令人着急的处理能力](#前序遍历-以及-masm-令人着急的处理能力)
     - [模式 2 不撮合](#模式-2-不撮合)
-    - [激活](#激活)
 - [代码演示](#代码演示)
     - [返回函数名](#返回函数名)
     - [展开指定的次数](#展开指定的次数)
-    - [文本宏死区展开](#文本宏死区展开)
+    - [展开本来不展开的文本宏](#展开本来不展开的文本宏)
     - [Douglas Crockford: Memoization](#douglas-crockford-memoization)
 - [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
     - [闪现](#闪现)
@@ -205,11 +204,11 @@ endif
 ## 预处理
 
 masm 定义的几百个关键字中有一类叫宏指令, 处理宏指令及宏指令定义的宏叫预处理. 预处理是文本处理, masm 的预处理做 5 件**基本**事情:
-<br>**pp1, 求值**. 计算这个整数表达式
-<br>**pp2, 转换**. 把这个整数转为字符串
-<br>**pp3, 定义**. 文本 a = 文本 b
-<br>**pp4, 重复**. 把这些文本重复若干次
-<br>**pp5, 调用**. 把这条文本按定义换成其它文本
+<br>`pp1, 求值`. 计算这个整数表达式
+<br>`pp2, 转换`. 把这个整数转为字符串
+<br>`pp3, 定义`. 文本 a = 文本 b
+<br>`pp4, 重复`. 把这些文本重复若干次
+<br>`pp5, 调用`. 把这条文本按定义换成其它文本
 <br>这些基本事情可以组合后出现在一行里面.
 
 masm 从上往下读取行, 从左往右处理行里的文本, 行尾的 `\` 视为续行. 编译原理/词法分析/tokenization 把字符序列转换为 token 序列,
@@ -613,12 +612,12 @@ tag | 宏名
 textequ | 和关键字 catstr 是同义词
 text-item | 文本项, 在下面解释
 
-<span id=text-item>文本项</span> | 简称 | 解释
----|---|---
-\<text> | 尖括号 | text 是字符串字面量, 不能包含 \n; 转义字符: ! 转义下一个字符, \ 续行
-% constexpr | 百分号 | 按当前 radix 对常量表达式求值, 转为字符串
-macrofunction() | 圆括号 | 调用[宏函数](#宏函数) macrofunction 并使用其返回值
-textmacro | 没符号 | tag 是文本宏 textmacro 的值的**别名**
+<span id=text-item>文本项</span> | 解释
+---|---
+\<text> | text 是字符串字面量, 不能包含 \n; 转义字符: ! 转义下一个字符, \ 续行
+% constexpr | 按当前 radix 对常量表达式求值, 转为字符串
+macrofunction() | 调用[宏函数](#宏函数) macrofunction 并使用其返回值
+textmacro | tag 是文本宏 textmacro 的值的**别名**
 
 展开文本宏就是把文本宏的名字替换为文本宏的值
 
@@ -861,14 +860,14 @@ masm    ,           <,>                 <!<>            cooked string (buggy)   
 masm 视一行是否以 % 打头, 采取两种确定文本宏和宏函数的办法
 
 - 查找模式仅适用于文本宏和宏函数; 宏过程只有一种查找模式, % 影响的是它的参数; 宏过程的名字也不靠 & 确定
-- **文本宏死区** 模式 1 和 2 都不从这些地方查找文本宏: 宏函数参数的尖括号, 没符号
+- **文本宏死区** 模式 1 和 2 都不从这些地方查找文本宏: 宏函数参数的字符串 (尖括号), 文本宏 (没符号)
 
 #### 模式 1
 
 - 如果一句话不以 % 打头, 以此模式确定该句的文本宏和宏函数
 - 边展开, 边检查语法. nl 不能大于 20 所以可能是递归调用
 - **过滤** 不从下列地方查找宏名<br>
-    引号, 尖括号; 块宏, echo, name, title, ... 的参数; for, forc 的参数; 文本项的尖括号, 没符号
+    引号, 尖括号; 块宏, echo, name, title, ... 的参数; for, forc 的参数; 左值; 文本项的字符串, 文本宏
 - **撮合** 若展开出的串最后一个 token 是宏函数名, 往后查找圆括号以展开该函数 (**bug1**); 否则
 - **不拼接原则** 不和后面的串拼接. 撮合是**拼接**的一种
 
@@ -878,6 +877,7 @@ masm 视一行是否以 % 打头, 采取两种确定文本宏和宏函数的办�
 - nl 不能大于未知 (520+?) 所以可能是循环
 - 如果宏名挨着 &, 展开时删掉 &; 引号外除非为了隔开两个名字 tok1&tok2 否则不需要 &
 - 两个反斜杠变一个反斜杠; 一个反斜杠删掉
+- 也展开分号后面的串 (注释)
 - 也展开这些宏: 引号里带 & 的; 尖括号里的; echo, name, title, for, forc, ... 的参数; 文本项
 - **惰性环境** 引号里的 token 必须挨着至少 1 个 & 才算宏名, 至多 2 个 = 两边各一个即 &tok& 或 &f()&
 - 删掉行首的 1 个 %, 展开, 不检查语法. 完毕查看行首, 如果行首以 % 打头, 再来一遍; 否则以模式 1 再来一遍
@@ -961,10 +961,10 @@ a4 textequ % 5 d 5
 % "&g()"                ; f called ; error A2008: syntax error : 3
 end
 
-尖括号, 不调用宏函数
-圆括号, 调用宏函数
-百分号, 调用宏函数, 展开文本宏
-没符号, 无法调用宏函数
+<字符串>, 不展开
+宏函数(), 调用
+% 表达式, 调用宏函数, 展开文本宏
+文本宏  , 不展开
 ```
 
 ```
@@ -995,8 +995,7 @@ self_ref
 ```
 ; 模式 1 在调用处会展开哪些宏参数. ml -EP dd.msm
 
-; 宏参数是文本项, 文本项在模式 1 下展开宏函数 (圆括号), 不展开文本宏 (没符号)
-; 宏对待没符号的方式和 textequ 不一样. 宏认为没符号是字符串, 会在两边加尖括号; textequ 认为是文本宏名
+; 宏参数在模式 1 下展开宏函数, 不展开文本宏. 对比 catstr/exitm/textequ, 它们展开参数里的文本宏
 
 te textequ <ddff>
 
@@ -1559,50 +1558,6 @@ end
 如果抛开 masm 的从左到右, %, 文本宏死区, ... 去解释输出, 当然能列出很多种可能; 但在 masm 里, 上面的分析是唯一的可能.
 ```
 
-### 激活
-
-拼接字符串时想到个问题: 想从变量拼接名字, 又不想展开右边, 该怎么做?
-
-```
-f macro i, s: req
-    local prefix, middle, activator
-    prefix textequ s ; prefix (??0000) = value of abc = ddd
-
-    ; 我想拼接左边, 不展开右边, i.e. ddd$3 textequ abc, how?
-    ; % prefix&&$&i textequ s       ; fail: ddd$3    textequ ddd
-    @catstr(prefix, $, i) textequ s ; fail: ??0000$3 textequ abc
-
-    ; 这时想起了拼接函数调用字符串
-    middle textequ <@catstr(>, prefix, <, $&i)>
-    ; 虽然 middle 的值是 @catstr(ddd, $3), 但下面只是替换了参数, 并没有调用它
-    middle textequ s ; fail: ??0001 textequ abc
-
-    ; middle() 明显不对, 但意外发现展开成了 ddd$3()
-    middle textequ <@catstr(>, prefix, <, $&i)>
-    ; middle() textequ s ; fail: ddd$3() textequ abc
-
-    ; 是圆括号激发了展开吗? 比如 ??0001() 由于后跟圆括号所以导致调用函数?
-    ; 但 middle (??0001) 的值是 @catstr(ddd, $3), 没法后跟圆括号了. 放到函数里试试?
-    activator macro
-        local t
-        t textequ <@catstr(>, prefix, <, $&i)>
-        exitm t ; eval
-    endm
-
-    ; succeed: ddd$3 textequ abc
-    activator() textequ s
-endm
-
-abc textequ <ddd>
-f 3, abc
-%  echo abc&$3  ; ddd$3
-%% echo abc&$3  ; ddd
-end
-```
-
-模式 1 下 textequ 左边的文本宏 s 不会展开, 想展开需要放到函数 f 中, 比如 exitm s, 然后 `f() textequ <xxx>`.
-展开本不展开的文本宏称为激活.
-
 ## 代码演示
 
 ### 返回函数名
@@ -1707,8 +1662,8 @@ end
     1\. 不知道如何返回变量的值. 即使返回了值, 使用的地方还得留意不让值里的宏展开<br>
     2\. 返回变量名的话使用前需要展开一次, 更麻烦, 类似 `%% "&&f(tok)"`
 - 难点 4, 变量<br>
-    没办法取变量的值, 计算出来的值总是由某个变量指代: 字面量不是变量, 但其值只能在程序运行前指定; 百分号计算整数表达式;
-    尖括号把变量名变成字符串, 反倒又加一层间接; 没符号没贡献; 圆括号是调用宏函数, 可这被调用的宏函数面临同样的问题
+    没办法取变量的值, 计算出来的值总是由某个变量指代: 字面量不是变量, 但其值只能在程序运行前指定; `%` 计算整数表达式;
+    `<变量名>` 是字符串, 反倒又加一层间接; `文本宏`没贡献; `宏函数()` 面临同样的问题
 
 ml -Zs dd.msm
 
@@ -1745,13 +1700,13 @@ expand_1st_token_n_times(te1, 4) ; "&return value of mf1"
 end
 ```
 
-### 文本宏死区展开
+### 展开本来不展开的文本宏
 
-**死区里是不可能展开的, 请放心**
+#### 作为宏函数参数时, 文本宏不展开
 
-这里要做的事是展开宏函数的文本宏参数, 宏函数的参数列表是文本宏死区, 因此说 "死区展开".
-为什么不能让宏函数在自己函数体里展开参数? 自己定义的宏函数当然没问题, 但那 4 个预定义宏函数你没法改它们的代码.
-要展开宏函数的文本宏参数, 应该是拼接出一个宏函数调用的串然后执行该串.
+宏函数参数不展开文本宏, 展开宏函数; 所以要展开宏函数的文本宏参数, 需要拼接出一个宏函数调用的串然后执行该串.
+
+为什么不能让宏函数在自己的函数体里展开参数? 自己定义的宏函数当然没问题, 但那 4 个预定义宏函数你没法改它们的代码.
 
 假设想调用 `@sizestr(s1)`, 如果把这个串原样写出来就会调用 @sizestr, s1 当作字面量, 没有宏替换. 这让我想到 html 的
 script 标签里要避免字面量 `</script>`, 往往是字符串里可能有这东西, 解决方法是分开写, 比如 `"<" + "/scirpt>"`.
@@ -1791,7 +1746,7 @@ arg textequ <1234567890>
 
 ; % echo te(arg)
 ; 输出 @sizestr(1234567890)
-; 原因: % 导致展开 echo 后面的文本宏和宏函数; te 是文本宏, 展开得到 @sizestr, 这是个函数名, 圆括号在其后的节点,
+; 原因: % 导致展开 echo 后面的文本宏和宏函数; te 是文本宏, 展开得到 @sizestr, 这是个函数名, 圆括号位于其后的节点,
 ; 要发生调用需要撮合, 而模式 2 不撮合
 
 %% echo te(arg)
@@ -1869,6 +1824,96 @@ f_a = this is abc, f_b = 2ndargreplaced, f_c = h, there
 ```
 
 \* *[No Old Maps Actually Say 'Here Be Dragons'](https://www.theatlantic.com/technology/archive/2013/12/no-old-maps-actually-say-here-be-dragons/282267/)*
+
+#### 作为左值, 比如放 textequ 左边时文本宏不展开
+
+拼接字符串时想到个问题: 想从变量拼接名字, 又不想展开右边, 该怎么做?
+
+```
+f macro outPrefix, rest: vararg
+    ;;    ??0000     ??0001 ??0002  ??0003
+    local activator, c,     middle, prefix
+
+    c textequ <0>
+    outPrefix textequ <prefix>
+
+    for i, <rest>
+        ;; 我想拼接左边, 不展开右边, i.e. ??0003$0 textequ abc, how?
+        ;; % prefix&$&&c textequ i       ; fail: ??0003$0 textequ ddd, 两边都展开了
+        @catstr(prefix, $, c) textequ i ;; fail: ??0003$??0001 textequ abc, c 没有展开
+
+        ;; 这时想起了拼接函数调用字符串
+        middle textequ <@catstr(prefix&$, >, c, <)>
+        ;; 虽然 middle 的值是 @catstr(??0003$, 0), 但下面只是替换了参数, 并没有调用它
+        middle textequ i ; fail: ??0002 textequ abc
+        ;; 可以一次拼出来 @catstr(??0003$0), 进而发现 @catstr 仅仅是为了函数调用
+        ;; middle textequ <@catstr(prefix&$>, c, <)>
+        
+        ;; middle() 明显不对, 但意外发现展开成了 ??0003$0()
+        middle textequ <@catstr(prefix&$, >, c, <)>
+        ;; middle() textequ i ; fail: ??0003$0() textequ abc
+        
+        ;; 是圆括号激发了展开吗? 比如 ??0002() 由于后跟圆括号所以导致调用函数?
+        ;; 但 middle 即 ??0002 的值是 @catstr(??0003$, 0), 没法后跟圆括号了. 放函数里试试?
+        activator macro
+            local t
+            t textequ <@catstr(prefix&$, >, c, <)>
+            exitm t ; eval
+        endm
+
+        ; succeed: ??0003$0 textequ abc
+        activator() textequ i
+
+        c textequ % c + 1
+    endm
+endm
+
+abc textequ <ddd>
+f prefix, abc
+%  echo prefix      ; ??0003
+%% echo prefix&$0   ; ddd
+
+; error A2051: text item required
+; f prefix, 10, 23, 32
+; %% echo prefix&$0 prefix&$1 prefix&$2 prefix&$3
+end
+```
+
+textequ 左右两边都是参数.
+
+模式 1 textequ 不展开左边的文本宏, 展开宏函数; 所以要展开 textequ 左边的文本宏参数需要拼接出一个宏函数调用的串然后执行该串.
+
+重点是用宏函数调用取代 textequ 左边的文本宏而不是调用 @catstr, @catstr 在这种情况下也没必要, 所以
+
+```
+f macro outPrefix, rest: vararg
+    local c, f, prefix
+
+    c textequ <0>
+    outPrefix textequ <prefix>
+
+    for i, <rest>
+        f macro
+            local t
+            t textequ <prefix&$>, c
+            exitm t
+        endm
+
+        f() textequ <i>
+        c textequ % c + 1
+    endm
+endm
+
+abc textequ <ddd>
+f prefix, abc
+%  echo prefix          ; ??0002
+%% echo prefix&$0       ; ddd
+%% echo "&&prefix&$0"   ; "abc"
+
+f prefix, 10, 23, 32
+%% echo prefix&$0 prefix&$1 prefix&$2 prefix&$3 ; 10 23 32 ??0006$3
+end
+```
 
 ### Douglas Crockford: Memoization
 
@@ -1968,17 +2013,17 @@ var shell = function (  ) {                     var shell = function (arr, f) { 
 }(  );                                          ...                                     ...
 
 // 于是, 这是经过前面 3 步形成的函数 shell...       这是本节一开始给出的书里的代码...
-var shell = function (arr, f) {                 var memoizer = function (memo, fundamental) {                                           
-    var calc = function (n) {                       var shell = function (n) {                                           
-        var result = arr[n];                            var result = memo[n];                                           
-        if (typeof result !== 'number') {               if (typeof result !== 'number') {                                                       
-            result = f(n, shell);                           result = fundamental(shell, n);                                               
-            arr[n] = result;                                memo[n] = result;                                           
-        }                                               }                       
-        return result;                                  return result;                                   
-    };                                              };                   
-    return calc;                                    return shell;                               
-}(  );                                          };                   
+var shell = function (arr, f) {                 var memoizer = function (memo, fundamental) {
+    var calc = function (n) {                       var shell = function (n) {
+        var result = arr[n];                            var result = memo[n];
+        if (typeof result !== 'number') {               if (typeof result !== 'number') {
+            result = f(n, shell);                           result = fundamental(shell, n);
+            arr[n] = result;                                memo[n] = result;
+        }                                               }
+        return result;                                  return result;
+    };                                              };
+    return calc;                                    return shell;
+}(  );                                          };
 ```
 
 你能找出上面左右两段代码的不同吗?
@@ -2096,12 +2141,13 @@ end
 
 ### name TEXTEQU macroId?
 
-```
-; 610guide p???/p177, name TEXTEQU macroId | textmacro
+> 610guide p???/p177<br>
+name TEXTEQU macroId | textmacro<br>
+macroId is a previously defined macro function, textmacro is a previously defined text macro
 
-; name TEXTEQU macroId? 错误. textequ 右边只能放宏函数的调用结果即 macroId(), 不能放宏函数名
-; 宏函数的调用结果是 text item, 宏函数不是
-; ml -Zs dd.msm
+```
+; name TEXTEQU macroId? 错误! textequ 右边只能放宏函数的调用结果即 macroId(), 不能放宏函数名
+; 宏函数的调用结果是 text item, 宏函数不是. ml -Zs dd.msm
 
 msg macro
     exitm <>
@@ -2111,6 +2157,8 @@ endm
 string TEXTEQU msg
 end
 ```
+
+估计是笔误, 原意要么是 macroId 是文本宏名, 要么是 macroId().
 
 ### masm 忽略句子中自己看不懂的部分
 
