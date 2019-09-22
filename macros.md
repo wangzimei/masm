@@ -385,7 +385,8 @@ content of str1 differs from str2
 **没有循环和跳转语句**. for, while 等关键字用于定义重复块, 把块内的语句就地展开指定次;
 递归调用[宏函数](#宏函数)是把宏函数[展开](#展开)若干次.
 
-\* *610guide p???/p187 repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm*
+> 610guide p???/p187<br>
+repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm
 
 **repeat**
 
@@ -1280,7 +1281,8 @@ endif
 end
 ```
 
-610guide p???/p198 在宏里可以用 pushcontext, popcontext 保存, 恢复下列设置
+> 610guide p???/p198<br>
+在宏里可以用 pushcontext, popcontext 保存, 恢复下列设置
 
 Option | Description
 ---|---
@@ -1764,7 +1766,7 @@ x textequ x, <c>
 end
 ```
 
-下面实现任意数量参数的调用
+下面实现任意数量参数的调用.
 
 ```
 call_with_args_expanded macro f: req, rest: vararg
@@ -1848,11 +1850,11 @@ f macro outPrefix, rest: vararg
         middle textequ i ; fail: ??0002 textequ abc
         ;; 可以一次拼出来 @catstr(??0003$0), 进而发现 @catstr 仅仅是为了函数调用
         ;; middle textequ <@catstr(prefix&$>, c, <)>
-        
+
         ;; middle() 明显不对, 但意外发现展开成了 ??0003$0()
         middle textequ <@catstr(prefix&$, >, c, <)>
         ;; middle() textequ i ; fail: ??0003$0() textequ abc
-        
+
         ;; 是圆括号激发了展开吗? 比如 ??0002() 由于后跟圆括号所以导致调用函数?
         ;; 但 middle 即 ??0002 的值是 @catstr(??0003$, 0), 没法后跟圆括号了. 放函数里试试?
         activator macro
@@ -1881,9 +1883,7 @@ end
 
 textequ 左右两边都是参数.
 
-模式 1 textequ 不展开左边的文本宏, 展开宏函数; 所以要展开 textequ 左边的文本宏参数需要拼接出一个宏函数调用的串然后执行该串.
-
-重点是用宏函数调用取代 textequ 左边的文本宏而不是调用 @catstr, @catstr 在这种情况下也没必要, 所以
+模式 1 textequ 不展开左边的文本宏, 展开宏函数, 所以用宏函数调用取代文本宏; @catstr 在这里没必要:
 
 ```
 f macro outPrefix, rest: vararg
@@ -1981,6 +1981,7 @@ for (var i = 0; i <= 10; i += 1) {
 寄希望于可以让它不是那么显眼. 这已经开始恶心了, 但程度可以忍受. necessary evil, 完全可以忍受, happily accepted.
 
 ```
+// fibonacci 现在只是个套子 (shell)
 var fibonacci = function (  ) {
     var memo = [0, 1];
     var fib = function (n) {
@@ -2010,7 +2011,7 @@ var shell = function (  ) {                     var shell = function (arr, f) { 
         return result;                                  ...                                     ...
     };                                              ...                                     ...
     return calc;                                    ...                                     ...
-}(  );                                          ...                                     ...
+}(  );                                          };                                      ...
 
 // 于是, 这是经过前面 3 步形成的函数 shell...       这是本节一开始给出的书里的代码...
 var shell = function (arr, f) {                 var memoizer = function (memo, fundamental) {
@@ -2023,14 +2024,15 @@ var shell = function (arr, f) {                 var memoizer = function (memo, f
         return result;                                  return result;
     };                                              };
     return calc;                                    return shell;
-}(  );                                          };
+};                                              };
 ```
 
 你能找出上面左右两段代码的不同吗?
 
-重读 js good parts 后我再次理解 (首次记起) 了 memoizer, 它就是为了给递归调用提供一个共享数组 - 以一种扭曲的方式. 换我来写, 能写的更好吗?
+重读 js good parts 后我再次理解 (首次记起) 了 memoizer, 它就是为了给递归调用提供一个共享数组 - 以一种扭曲的方式.
+换我来写, 用当时的语法和思路, 能写的更好吗?
 
-但修改 memoizer 的事不在这里做, 这里要做的是用 masm 的宏实现 crockford 的 memoizer.
+但修改 memoizer 的事现在不做, 现在要做的是用 masm 的宏实现 crockford 的 memoizer.
 
 热身运动 (... HBD anyone??): <span id=数组>数组</span>
 
@@ -2073,10 +2075,10 @@ end
 
 为什么不把 newArray 定义为宏函数, 然后写 arr1 textequ newArray(12, 5, -8) 呢? 因为
 
-- 那样 arr1 就是个字符串, 发生撮合, 为避免 A2039 需要返回文本宏, 麻烦
-- 由于模式 2 不撮合, % echo arr1(5) 得到 echo ??00nn(5), 想打印值得 %% echo arr1(5)
+- 那样 arr1 就是个字符串, arr1(53) 是撮合, 为避免 A2039, 要么返回文本宏要么进模式 2, 麻烦
+- 由于模式 2 不撮合, % echo arr1(5) 得到 echo ??00nn(5), 想打印值得 %% echo arr1(5), 还是麻烦
 
-返回字符串不好, 那为什么不能让 newArray 返回宏函数然后写 arr1 = newArray() 然后 arr1(6) 呢?
+返回字符串麻烦, 那为什么不能让 newArray 返回宏函数然后写 arr1 = newArray() 然后 arr1(6) 呢?
 
 - ... \**face slap** 能吗?
 
@@ -2106,17 +2108,17 @@ memoizer macro memo, f
     exitm <shell>
 endm
 
-fib macro shell, n
+newArray arrFib, 0, 1
+newArray arrFac, 1, 1
+cbFib macro shell, n
     exitm % shell(% n - 1) + shell(% n - 2)
 endm
-newArray fibarr, 0, 1
-fibonacci textequ memoizer(<fibarr>, <fib>)
-
-fac macro shell, n
+cbFac macro shell, n
     exitm % n * shell(% n - 1)
 endm
-newArray facarr, 1, 1
-factorial textequ memoizer(<facarr>, <fac>)
+
+fibonacci textequ memoizer(<arrFib>, <cbFib>)
+factorial textequ memoizer(<arrFac>, <cbFac>)
 
 ifdef n
     %% echo fibonacci (n) factorial (n)
@@ -2126,7 +2128,67 @@ endif
 end
 ```
 
-**注意** 函数 fib, fac 没有确保 n 在正确的区间, crockford 的原文也没有确保这点.
+**注意** 函数 cbFib, cbFac 没有确保 n 在正确的区间, crockford 的原文也没有确保这点.
+
+本节宏的内容已经展示完毕, 现在看看 crockford 的 memoizer.
+
+```
+var memoizer = function (memo, fundamental) {
+    var shell = function (n) {
+        var result = memo[n];
+        if (typeof result !== 'number') {
+            result = fundamental(shell, n);
+            memo[n] = result;
+        }
+        return result;
+    };
+    return shell;
+};
+
+// remove useless shell                             按正常的方式写函数, 改掉莫名其妙的名字
+var shell = function (n, memo, fundamental) {       function f(n, arr, cb) {
+    var result = memo[n];                               var result = arr[n];
+    if (typeof result !== 'number') {                   if (typeof result !== 'number') {
+        result = fundamental(shell, n);                     result = cb(f, n);
+        memo[n] = result;                                   arr[n] = result;
+    }                                                   }
+    return result;                                      return result;
+};                                                  }
+
+// 观察 f 和 cb 的参数列表
+// cb 里面要调用 f; f 需要 (n, arr, cb) 但 f 调用 cb 时只传了 (f, n), cb 只知道 (cb, f, n)
+// 为什么以前不需要传 arr?
+// - 因为以前 arr 是捕获的变量, 每个 (arr, cb) 对应一个 f; 现在删了套子把 arr 放参数里了, 只有一个 f
+// cb 就是需要这么多参数, 捕获可以减少参数但增加了闭包对象; f 需要这么多参数是因为 f 是从 cb 中硬拆出来的
+// 补全并重排参数
+function f(n, arr, cb) {
+    var result = arr[n];
+    if (typeof result !== 'number') {
+        result = cb(n, arr, f);
+        arr[n] = result;
+    }
+    return result;
+}
+function cbFib(n, arr, f) {
+    return f(n - 1, arr, cbFib) + f(n - 2, arr, cbFib);
+}
+function cbFac(n, arr, f) {
+    return n * f(n - 1, arr, cbFac);
+}
+
+var arrFib = [0, 1], arrFac = [1, 1];
+
+console.log(
+    f(20, arrFib, cbFib),
+    f(10, arrFac, cbFac),
+    f(13, arrFib, cbFib));
+```
+
+f 简单了, 但 cb 啰嗦了. 还能简化吗? 不能了. f 和 cb 本来就是一套逻辑, 原来的 cb 看似简单: 无条件调用 f,
+实际上是否继续递归要依赖 f 的代码. 每次执行 cb 都有个判断, 但从 cb 里面看不出来. cb 不是个完整的逻辑,
+根本不该写成函数.
+
+缓存是个有用的办法, 空间换时间. 但为了演示缓存而构造出一套这样的代码, 喧宾夺主.
 
 ## 610guide 和 masm 的 bug
 
@@ -2378,9 +2440,9 @@ mf a, (mf , slkdjfoiu, 097-98yph&nj) 引发上述错误. todo: 调查它
 
 ### 预定义的字符串函数参数可以是文本宏?
 
-610guide p???/p191<br>
-Each string directive and predefined function acts on a string, which can be any textItem.
-The textItem can be ... the name of a text macro, ...
+> 610guide p???/p191<br>
+Each string directive and predefined function acts on a string, which can be any
+textItem. The textItem can be ... the name of a text macro, ...
 
 ```
 ; 610guide p???/p192, catstr, substr, @SizeStr 使用示例
@@ -2554,7 +2616,7 @@ end
 
 - (太费解) 删除令人费解的名词比如把 token 翻译为信物; 用 A.D. 表示公元后; css 术语 inline, block, inline-block
 - (太吓人) 删除对续行的描述
-- (太抽象) 重新把示例代码混入介绍, 早先是把这俩分开了; 在靠前位置添加 hello world; 考虑本条目的做法之后, 在开头添加速成课
+- (太抽象) 重新把示例代码混入介绍, 早先是把这俩分开了; 建议是开头添加 hello world, 考虑之后在开头添加速成课
 - (太误导) 明确对 610guide (Microsoft MASM 6.1 Programmer's Guide) 的引用: 用 "610guide" 代替 "本书"
 
 
