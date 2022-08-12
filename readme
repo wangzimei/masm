@@ -1,46 +1,152 @@
 
-
-8086        16 位实模式, dos
-cmdln       masm 命令行
+8086        16 位实模式 dos
+cmdln       测试 masm 命令行
 copy        抄来的东西
 iaie        intel 指令扩展
 out         生成的文件
 x64         保护模式, ring3, windows
-learn       masm 概述
-macros      masm 的宏
-think       一些思考
 
-欠缺的内容
-x86/x64 protected mode ring0                            驱动程序?
-8086/x86/x64 without os                                 如何编译是个问题, 在另外的系统里编译?
+==================== 编写和执行 masm 汇编程序
+
+compile 16 bits masm 6.x code and run it in dos 5+
+
+* macro programs run at compile time, you can compile them using newer versions of
+ml.exe, thus avoid dos and dosbox altogether.
+
+choices of toolchain:
+1. online editor or compiler
+    best choice, but i can't find any @2022.7.20
+2. dosbox
+    shared file system between local machine and dosbox
+3. online emulator
+    closest i've ever found is pcjs.org
+    masm 4.0  on ms-dos 3.20    https://www.pcjs.org/software/pcjs/
+    masm 5.10 on pc-dos 3.30    https://www.pcjs.org/software/pcx86/lang/microsoft/masm/5.10x/
+4. bochs, qemu, virtualbox, ...
+    dosbox 不是模拟器, 有些指令执行的不正确, 这时需要在模拟器里执行
+
+download dosbox at https://www.dosbox.com/, mac users can also install via homebrew
+download masm 6.x, e.g. https://sourceforge.net/projects/masm611/
+install dosbox, configure it, see relevant section below
+launch dosbox, install masm 6.x
+write code in any editor, switch to dosbox, ml file
+
+debug generated executable using cv.exe
+f4 = hide window, f5 = f7 = go, f8 = f10 = proceed, f9 = break point, 没找到 trace
+
+redirect ml outputs to file named fff
+> fff ml -Zs dd.msm
+
+view binary
+- macos 常用 hexdump, od, xxd
+    xxd out/dd.obj
+- windows powershell
+    format-hex out/dd.obj
+
+https://en.wikipedia.org/wiki/Microsoft_Macro_Assembler
+
+==================== 欠缺的内容
+
+x86, x64 protected mode ring0                           驱动程序?
+8086, x86, x64 without os                               如何编译是个问题, 在另外的系统里编译?
 intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
 gpu assembly programming                                masm 显然编译不了
 
 ==================== faq
 
-? 为什么很多汇编代码的关键字都是大写?
+? 为什么很多汇编代码的关键字都是大写
 ! 汇编时代的文本编辑器没有语法高亮
 - 键盘没有小写按键的时期
 - masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
 
-==================== 在 64 位 windows 10 上写汇编程序
+==================== dosbox and config
 
-16      bits    dosbox 或者虚拟机, 用 masm 6.11 生成
-32/64   bits    ml/ml64 生成运行
+macos
+把 dosbox.app 放入 /applications, 运行 dosbox, 执行
+config -writeconf dosbox.conf
+在 dosbox.app 所在目录新建 dosbox.conf
+http://www.vogons.org/viewtopic.php?t=33318
 
-masm 的关键字分两种
-1. cpu 规定的指令集的指令助记符
-2. masm 规定的指示, 符号, 操作符
+win10
+安装 dosbox, 运行, 会在下面位置生成配置文件. 我不知道如何改变位置
+C:\Users\王子美\AppData\Local\DOSBox\dosbox-0.74-3.conf
+开始菜单的 dosbox 里面也有打开配置文件的条目
 
-32/64 位 windows 的用户态代码只能执行 ring3 指令
+假设想让 c:\code\masm 做为 dosbox 的虚拟 c 盘
+关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 节写
+mount c c:\code\masm
+c:
 
-分支, 跳转, 算术, 预定义函数
+打开 dosbox 安装 masm. 假设安装在 c:\code\masm\8086\masm611, 要配置环境变量
+关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 添加
+set path=%path%;c:\8086\masm611\bin;c:\8086\masm611\binr;
 
-从哪里开始执行? 或者说入口地址是啥?
-com 文件没有文件头, 入口地址固定是 100h; - 有些 com 是 exe 改了扩展名
-exe 文件头记录连接器生成的入口地址, 连接器依据: 源文件中 end 指出的标签; link -entry 指出的标签; 第 1 条指令
+常用命令
+CTRL-F4     重新扫描目录 - 现在感觉不常用, vscode 里随便修改文件, dosbox 里没发现有缓存问题
+CTRL-F10    释放鼠标捕获
 
+==================== online emulator
 
+https://www.pcjs.org/
+
+看起来有很多硬件配置和软盘, 但网站很难用.
+有些主机用启动盘就行了, 不需要预配置; 但多数是加载个硬件配置, 然后需要你自己安装, 比如
+https://www.pcjs.org/software/pcx86/sys/dos/microsoft/6.22/
+https://www.pcjs.org/software/pcx86/lang/microsoft/masm/6.00/
+
+看到模拟的屏幕下方有 mount 和 save hd, 于是想, 是不是能保存设置好的主机, 下次从网站打开?
+于是从头安装操作系统和软件, 然后 save hd. 然后遇到下面问题:
+- mount 功能无效. 首先就不知道 mount 该咋用, 在哪个页面 mount? 试着跑到了安装 dos 6.22 的页面,
+    选择保存的 img 文件, 点 mount. 错误: unrecognized disk format
+- 分类莫名其妙. 软件也和硬件一样放目录里, 但点开其实是加载了某个预配置的主机, 并在软盘里放入软件的
+    安装盘. 但安装盘本来就可以在主机的软盘里选择, 没必要和硬件并列; 并且想换主机怎么办?
+- 模拟器的 caps 既不能检测也不能控制键盘的 cpas lock, 反被其控制. 有时 caps 显示的状态和实际状态正相反
+- 预配置的主机在 c 盘里执行 dir 输出的是某个目录的名字, 比如德军总部是 c:/wolf3d, win95 是 c:/windows,
+    这是 bug 吧?
++ 软盘列表里有 the undocumented pc, 我看过这本书, 很喜欢.
+
+https://copy.sh/v86/?profile=msdos
+
+预配置的 ms-dos 6.22, 有 c:/debug.com 和 c:/dos/debug.exe
+dir /w /on dos | more
+f3, f7 可以查看执行过的命令, 要用上下箭头切换, 先执行 doskey(.com).
+
+- 很消耗 cpu, 风扇不停的转
+
+==================== freedos in virtualbox
+
+http://wiki.freedos.org/wiki/index.php/VirtualBox
+
+创建虚拟机, 加载 freedos 1.2 iso, win10 和 mac mojave 安装时一直报错
+freedos invalid opcode at 0fae ...
+下面的网页说在 "Install to harddisk" 处按 tab, 在 /boot/syslinux/memdisk 后加 raw
+KERNEL /boot/syslinux/memdisk -> KERNEL /boot/syslinux/memdisk raw
+https://sourceforge.net/p/freedos/bugs/177/
+虽然按 tab 后出现的命令行和他说的不大一样, 但仍能找到 /memdisk, 加上 raw 就能安装了
+其他网页说在 bios 里把 AHCI 改成 IDE (legacy), 装完 freedos 后改回来, 感觉太麻烦没试
+
+启动后发现需要 masm 和 code 目录, 这在 dosbox 根本不是问题, 挂载目录就完事了, 虚拟机里就开始麻烦
+首先我记得以前能在 windows 里挂载 vhd, 现在右键 VirtualBox VMs\freedos 1.2\freedos 1.2.vhd 没那选项, 隐约觉得和 hyper-v 有关
+然后尝试 VirtualBox 的共享文件夹, 设置完不知道咋用, 一看 reddit 说共享文件夹需要 vm addon, dos 没那东西
+然后找到这个网页, 里面列出了好几种 win10 挂载 vhd 的办法
+https://www.tenforums.com/tutorials/61391-mount-unmount-vhd-vhdx-file-windows-10-a.html
+先尝试 powershell Mount-VHD, 说不认识该命令, 一查 msdn 说属于 hyper-v 模块, 至此确定和 hyper-v 有关, 但轻易也不想装它
+然后尝试磁盘管理 diskmgmt.msc 里面 操作 > 附加 vhd, 终于成功挂载, 把两个目录拷贝到 vhd 里面了
+
+2019.8.18
+上面是昨天做的, 今天起来看 freedos 的网页
+Chapter 6: Mount the FreeDOS image to transfer files
+http://wiki.freedos.org/wiki/index.php/VirtualBox_-_Chapter_6
+这页面给的办法就是磁盘管理 > 附加 vhd
+
+macos 挂载 vhd
+freedos wiki 推荐用软件 Paragon VMDK Mounter, 点连接过去看到 Legacy Product, Unavailable since 06 Jun 2018
+于是找其他方法
+https://superuser.com/questions/554886/mount-a-vhd-virtualbox-in-osx
+/usr/bin/hdiutil attach -imagekey diskimage-class=CRawDiskImage "virtualbox vms/freedos 1.2/freedos 1.2.vhd"
+
+往挂载的 vhd 里面拷贝 masm 和 code 目录之后, 一般还会在虚拟机的 c:/autoexec.bat 里把 ml.exe 所在目录加到 path 环境变量里
+这个文件的属性有系统, 在 windows 里是隐藏的
 
 ==================== masm 和 c 的对比
 
@@ -49,7 +155,7 @@ if, elseif, else, endif         #if, #elif, #else, #endif
 ifdef , elseifdef               #ifdef , #if  defined, #elif  defined
 ifndef, elseifndef              #ifndef, #if !defined, #elif !defined
 ife, elseife                    <none>
-textequ/macro *                 #define
+textequ, macro *                #define
 <none>                          #undef
 .err                            #error
 .erre, .errnz                   <none>
@@ -57,14 +163,14 @@ textequ/macro *                 #define
 *   c 的宏一行就够了, 因为可以用分号创建许多逻辑行; masm 的行是硬行, 创建单行宏和多行宏语法不同
     c 的宏只展开一次; masm 的宏一直展开到没有宏为止
 
-only in macros                  c
+within macro definitions        c
 ifb, elseifb                    <none>
 ifnb, elseifnb
 ifidn, elseifidn                <none>
 ifidni, elseifidni
 ifdif, elseifdif                <none>
 ifdifi, elseifdifi
-rest: vararg                    .../__VA_ARGS__
+rest: vararg                    ..., __VA_ARGS__
 .errb, .errnb                   <none>
 .erridn, .erridni               <none>
 .errdif, .errdifi               <none>
@@ -72,50 +178,33 @@ rest: vararg                    .../__VA_ARGS__
 <none 2>                        #s
 <none 3>                        s1##s2
 1 可以用宏函数实现
-2 类似 masm 里随处可用的 %, % expr
-3 类似 masm 里随处可用的 &, s1&&s2
+2 % expr 随处可用, 不限于宏定义里
+3 s1&&s2 随处可用, 不限于宏定义里
 
-with /Zm, OPTION M510 or OPTION SETIF2:TRUE
+Both /Zm and OPTION M510 imply SETIF2:TRUE. with OPTION SETIF2:TRUE
 .err1, .err2
 
 miscellaneous directives        c
-echo                            #pragma message
+echo, %out                      #pragma message
 include                         #include
 includelib                      #pragma comment(lib)
-<todo: find out>                ms: __pragma
+<todo: find out>                vc++ __pragma
 
 ==================== 其他细节
 
-汇编出现的较早, 在 8, 16 位 cpu 时是常用语言, 此后用的人少了, 也就没怎么发展 (幸亏没怎么发展. 看看 js 发展成啥样了)
-网上很多汇编的例子是 16 位的, 使用时要注意. 看到 /AT, /omf, .startup, org 100h, int 21h 基本就是 16 位 masm
+汇编在 8 位 和 16 位 cpu 的时候是常用语言, 后来就没怎么发展.
+没发展是好事, 发展的语言加入的特性很多都是半成品, 为兼容旧语法又会制造别扭的新语法
 
-实模式是 16 位
-16 bit segment << 4 + 16 bit offset = 20 bit address
-* 注意这个左移, 在当时的 16 位通用寄存器上做不到
-为什么这么弄? 因为 8086, 80186 的地址线是 20 位, 可以访问的地址空间是 2 ^ 20 = 1 Mb, 于是 intel 就用两个 16 位数表示一个 20 位数
-https://en.wikipedia.org/wiki/RAM_limit
+网上很多汇编的例子是 16 位的, 看到 /AT, /omf, .startup, org 100h, int 21h 基本就是 16 位 masm
 
-32 位 cpu 的通用寄存器是 32 位, 可以保存 32 位地址. 下面是一些思考
-- 32 位 cpu 寻址空间也是 32 位, 这次 intel 居然没弄出个 40 位的地址线... or doesn't it?
-- - 不能苛求, 当时的硬件状况就是 16bit cpu 和 20bit memory
-- - intel 的 pae Physical Address Extension 有 36 位地址线, 原因还是硬件状况 - pci hole
-- - 每次都是硬件限制, 每次都是组合地址... 当然了, 不多, 共两次
-- 假设 32 位 cpu 用于保存 offset 的寄存器是 16 位, 那仍可以用上面的 segment:offset 表示 32 位地址, 这时段寄存器 << 16
-- 单看 segment:offset 绝对猜不到是 segment * 16 + offset, 这种写法主要是列出俩寄存器的值
+segment:offset = (16 bits segment << 4) + 16 bits offset = 20 bits address
+这个左移在当时的 16 位通用寄存器上做不到
+单看 segment:offset 绝对猜不到是 segment * 16 + offset, 这种写法只能列出俩寄存器的值, 无法表明计算方式
+若 segment << 16 就能表示 32 位地址, 不过没有 cpu 用这种方式. 32 位 cpu 可以把 16bits segment 放到
+32bits offset 前面得到 48bits address, 似乎没有操作系统用这种方式.
 
-保护模式是 32 位
-段寄存器仍然是 16 位, 保存 selectors 表的索引, selector 保存
-- base address of memory block
-- size of memory block
-- access rights (read, write, execute)
-虚拟内存地址 effective address = base address + 32 bit offset   - 可疑
-
-effective address -(au or mmu)-> physical address
-
-x64 的段寄存器也是 16 位, 地址线 52 位
-
-以下是我对寄存器别名的印象, 是否正确还要验证
-- 由于寄存器别名, 代码里的寄存器可能对应好几个 cpu 寄存器
-- 所有这些被别名的寄存器都不小于别名, 不大可能是多个小的寄存器组合成一个大的
+印象里寄存器别名有下列特征, 不知是否正确. 不重要
+- 由于寄存器别名, 代码里的寄存器可能对应好几个 cpu 寄存器, 值是这几个寄存器的组合值
+- 所有这些被别名的寄存器都不小于别名的长度, 不会用多个小的寄存器组合成一个大的
 - 段寄存器比如 gs, 代码里是 16 位, 实际上可能对应好几个 64 位寄存器? 或者只有通用寄存器有别名?
 

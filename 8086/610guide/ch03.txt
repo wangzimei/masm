@@ -10,18 +10,56 @@ ASSUME cs:_TEXT, ds:DGROUP, ss:DGROUP
 
 p???/p49
 Notice the ORG statement in this example. ... It places the first instruction
-at offset 100h in the code segment to create space for a 256-byte (100h)
-data area called the Program Segment Prefix (PSP).
-看到上面的话我有 2 个想法
-1. org xxx 只是通知 masm 把其后语句的地址视为 xxx, 并不会把该语句放到第 xxx 字节处
-2. 可我确实见过 com 文件前 100h 字节全是 0 的, 当时还搜索 masm org full of zeros 得到下面网页
-    https://stackoverflow.com/questions/15199938/org-0c700h-gives-weird-output
-    可现在编译不出这种前面一堆 0 的 com 文件了
+at offset 100h in the code segment to create space for a 256-byte (100h) data
+area called the Program Segment Prefix (PSP). The operating system takes care
+of initializing the PSP, so you need only make sure the area exists.
+
+我看到前 100h 字节全是 0 的 com 文件时搜索了 masm org full of zeros 得到下面网页, 帮助不大
+https://stackoverflow.com/questions/15199938/org-0c700h-gives-weird-output
+
+; 前 100h 全是 0 的 com, ml -AT -Foout\ dd.msm -Feout\
+; 这是个常见错误: 没有用 end 指出起始地址. 连接器输出下面警告并把起始地址置为 0;
+; LINK : warning L4055: start address not equal to 0x100 for /TINY
+; 然后看到 org 100h, 就从 0 起填 100h 个 0; 然后把 db 1 生成的语句放入第 100h
+;
+; 备用, 和这里不相关: LINK : warning L4040: stack size ignored for /TINY
+xxx segment
+org 100h
+db 1
+xxx ends
+end
+
+; ml -AT -Foout\ dd.msm -Feout\
+xxx segment
+s:
+db 'It places the first instruction',
+'at offset 100h in the code'
+org 10h
+db '=========='
+xxx ends
+end s
+
+% xxd out/dd.obj
+00000000: 8008 0006 6464 2e6d 736d 2f96 0600 0003  ....dd.msm/.....
+00000010: 5858 5859 9807 0060 3900 0201 01c4 a03d  XXXY...`9......=
+00000020: 0001 0000 4974 2070 6c61 6365 7320 7468  ....It places th
+00000030: 6520 6669 7273 7420 696e 7374 7275 6374  e first instruct
+00000040: 696f 6e61 7420 6f66 6673 6574 2031 3030  ionat offset 100
+00000050: 6820 696e 2074 6865 2063 6f64 659a a00e  h in the code...
+00000060: 0001 1000 3d3d 3d3d 3d3d 3d3d 3d3d df8a  ....==========..
+00000070: 0600 c150 0100 005e                      ...P...^
+% xxd out/dd.com
+00000000: 4974 2070 6c61 6365 7320 7468 6520 6669  It places the fi
+00000010: 3d3d 3d3d 3d3d 3d3d 3d3d 6374 696f 6e61  ==========ctiona
+00000020: 7420 6f66 6673 6574 2031 3030 6820 696e  t offset 100h in
+00000030: 2074 6865 2063 6f64 65                    the code
+
+
+
 
 short   jmp     rel8
 near    jmp     rel16, r/m16
 far     jmp     ptr16:16, m16:16
-
 
 p???/p50
 这里对 Near Code 和 Far Code 的描述非常含糊, 委婉表达了远代码通过 call seg:offset 调用, 用 retf 返回;

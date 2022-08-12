@@ -9,7 +9,7 @@ never officially revised since 2.40
 debug 用于调试 com 文件
 debug 输入输出的数字都是 16 进制, 不带前后缀, 忽略 h 后缀
 
-加载 com 时, bx-cx = 程序长度/要写入的文件的字节数, 0-0 if no file; sp = fffe
+加载 com 时, bx-cx = 程序长度/要写入的文件的字节数, 0-0 if no file; sp = 0xfffe
 
 该网页强调, on 80486+
 Loading the SS register with a MOV instruction inhibits all interrupts until after the execution of the next instruction
@@ -51,12 +51,10 @@ https://thestarman.pcministry.com/asm/debug/DOSstub.htm
 
 Whenever the DOS EXEC function is called to examine a file
 (anytime you load an .EXE or .COM program into DEBUG 2.0+ for example)
-说明 debug 调用了 dos 的 exec 函数?
 
-debug 加载 com 和 exe 时, 使用 dos 的 exec 函数, exec 检查文件头,
-结果是: 文件以 MZ 开始的, 加载到内存 0; 其它加载到 100h
-至于加载 com 和 exe 之外的文件用的是啥方法, 这里没说
-
+DOS 2.0+ 的 debug 调用 dos 的 exec 函数加载 com 和 exe, exec 检查文件头, 以 MZ 开始的视为 exe,
+跳过文件头, 加载到 cs:0, 其它加载到 cs:100h. 这里没说加载 com 和 exe 之外的文件用的是啥方法
+要想用 debug 修改 exe 文件应先把扩展名从 exe 修改为非可执行文件比如 bin
 记得其他页面说过 debug 按扩展名确定文件类型, 给了例子修改 com 的扩展名后 debug 不执行它了
 
 http://www.armory.com/~rstevew/Public/Tutor/Debug/debug-manual.html

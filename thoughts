@@ -1,0 +1,221 @@
+
+◇
+◇ ◆ ◇   intel 的毛病
+◇
+
+◇ 错误的名称
+
+wrong       should be
+─────────────────────
+mov         copy, set
+
+◇ 错误的顺序
+
+wrong               should be
+──────────────────────────────────────────────────
+mov dest, source    mov source, dest (at&t syntax)
+
+◇ 多余的逗号
+
+mov a, b                        could be
+──────────────────────────────────────────────────
+mov a, offset b                 mov a offset b
+mov a, max b, c                 mov a max b c
+mov a, max b, c, d, e, ...      mov a max b c d e ...
+mov max a, b, c                 the code is invalid
+
+◇ 同义词
+
+code, instruction, text
+
+◇ 寄存器
+
+寄存器让汇编语言更麻烦, 但可能也避免不了.
+
+◇ ◆ 通用寄存器的命名方式
+
+bad
+    ax, bx, sp, di
+good
+    st0 ~ st7 (8 names)
+better
+    st\[0] ~ st\[7], or st0 ~ st7 (1 name and 8 indices, optional space between st and number)
+
+◇ ◆ 指令隐含使用寄存器
+
+比如 loop (cx), jz (zf). 可能因为硬件少, 提供不了专用寄存器, 又不想添加指定寄存器的语句.
+不过 jz 都把 z 写到名字里了, 还算不算隐含使用?
+
+https://stackoverflow.com/questions/45538021/how-to-know-if-a-register-is-a-general-purpose-register
+eax: mul
+ebx: xlat
+ecx: shl
+edx: div
+edi: stos
+esi: lods
+ebp: leave
+esp: ret
+
+◇ ◆ ◇ 指令隐含使用寄存器和内存
+
+push 依赖内存, 寄存器 ss 和 sp, 这 3 样存储组成抽象概念 "栈"
+
+◇ 中断
+
+cpu 不断查看中断请求 (轮询), 满足请求, 所以 cpu 决定是否以及如何响应中断请求.
+也可以设想一种中断模式, 随时中断无需 cpu 同意. 不过执行这个模式的硬件是不是因此就变成 cpu 了, 尽管它不计算?
+是否让 cpu 处理中断, 以及是否让任何人干任何事情, 都会引发信任的问题.
+有没有比信任更好的确保过程及结果的方法? 这里不考虑补救, 纠正等事后措施; 8259a, apic 等中断控制器显然也不符合要求.
+
+◇ 高速缓存
+
+分支预测如果猜中了, 使用高速缓存里的代码, 否则从内存读取代码. 代码无法干涉这种行为, 所以它不影响编程.
+
+现在加了个 pause 指令, 可以提升 spin-wait 的性能, 因为可以帮助减小分支预测出错对性能的影响
+https://stackoverflow.com/questions/12894078/what-is-the-purpose-of-the-pause-instruction-in-x86
+
+pause 把分支预测和高速缓存拉入了代码, 编程时不得不考虑, 增加程序员的负担. 要说不用 pause 也照样编程,
+只是会错失一个提升性能的机会. cpu 的分支预测是它自己的事情, spin-wait 效率不高应该它自己解决,
+不该发明一个指令把负担交给程序员.
+
+◇ 对齐
+
+虽不常见, 见到时很烦
+
+◇ todo
+
+lock prefix 用来独占内存
+
+wait 和 cache 有没有关系?
+
+◇
+◇ ◆ ◇   masm 的毛病
+◇
+
+◇ 虎头蛇尾的 comment 语句
+
+comment 可以自定义括号, 但实现的很粗糙
+- 定义 1 个字符, 该字符括起来的内容算注释
+- 开始和结束的行, 这两个整行都算注释
+
+c++ 原始串字面量, http form data multipart delimiter 等都比它完善
+
+◇ 怎么 echo 分号?
+
+执行 echo 前先把注释删掉了, 导致 echo 看不到分号及其后的内容
+
+◇ vararg
+
+宏的变参 vararg 保存的是处理过的参数, 意味着 <1, 2, 3> 用具名参数接收时是 1 个参数, 用 vararg 参数接收时是 3 个
+
+◇
+◇ ◆ ◇   masm 命令行 - 观察双引号导致的一些结果
+◇
+
+下面既有从本目录编译的, 也有从 cmdln 目录编译的; 由于比较长所以单独放一节
+
+编译时 ml 6 打印下列错误信息; ml 14 类似, ml 6 的 A4017 = ml 14 的 A4018; 可以看到
+- 如果 /Zs 没有完全匹配, 则开始尝试, 原则是单独字母 (Z) + 其它字母
+- s 首先被忽略了; 这算啥逻辑? 是不是把单个字母后面的 1 个字母视作空白给忽略掉?
+- 尝试时不是 1 次减 1 个字母, cmd, off 等类似 "关键词", 一次减掉
+- 这种减法也是奇怪, 如果我弄个以 s 结尾的文件名, 是不是最终它能匹配上 Zs? 没试
+
+ml "-Zs" "cmdln/abc"
+ Assembling: cmdln/abc
+
+ml "-Zs " "cmdln/abc"
+warning A4017: invalid command-line option : /Z
+ Assembling: cmdln/abc
+
+ml "-Zs   " "cmdln/abc"
+warning A4017: invalid command-line option : /Z
+warning A4017: invalid command-line option : /Z
+warning A4017: invalid command-line option : /Z
+ Assembling: cmdln/abc
+
+ml "-Zs "abc"
+warning A4017: invalid command-line option : /Z abc
+warning A4017: invalid command-line option : /Zabc
+warning A4017: invalid command-line option : /Zbc
+warning A4017: invalid command-line option : /Zc
+fatal error A1017: missing source filename
+
+ml "-Zs "coff"
+warning A4017: invalid command-line option : /Z coff
+warning A4017: invalid command-line option : /Zcoff
+warning A4017: invalid command-line option : /Zoff
+fatal error A1017: missing source filename
+
+ml "-Zs ""abc"
+warning A4017: invalid command-line option : /Z "abc
+warning A4017: invalid command-line option : /Z"abc
+warning A4017: invalid command-line option : /Zabc
+warning A4017: invalid command-line option : /Zbc
+warning A4017: invalid command-line option : /Zc
+fatal error A1017: missing source filename
+
+ml "-Zs ""coff"
+warning A4017: invalid command-line option : /Z "coff
+warning A4017: invalid command-line option : /Z"coff
+warning A4017: invalid command-line option : /Zcoff
+warning A4017: invalid command-line option : /Zoff
+fatal error A1017: missing source filename
+
+ml "-Zs "cmdln/abc"
+warning A4017: invalid command-line option : /Z cmdln/abc
+warning A4017: invalid command-line option : /Zcmdln/abc
+warning A4017: invalid command-line option : /Zln/abc
+warning A4017: invalid command-line option : /Zn/abc
+warning A4017: invalid command-line option : /Z/abc
+warning A4017: invalid command-line option : /Zabc
+warning A4017: invalid command-line option : /Zbc
+warning A4017: invalid command-line option : /Zc
+fatal error A1017: missing source filename
+
+ml "-Zs "cmdln/coff"
+warning A4017: invalid command-line option : /Z cmdln/coff
+warning A4017: invalid command-line option : /Zcmdln/coff
+warning A4017: invalid command-line option : /Zln/coff
+warning A4017: invalid command-line option : /Zn/coff
+warning A4017: invalid command-line option : /Z/coff
+warning A4017: invalid command-line option : /Zcoff
+warning A4017: invalid command-line option : /Zoff
+fatal error A1017: missing source filename
+
+
+◇
+◇ ◆ ◇   能否加点啥
+◇
+
+预处理 pp 缺啥？模式匹配？
+
+◇
+◇ ◆ ◇   翻译
+◇
+
+我现在觉得把 call 翻译为调用很扯蛋, invoke 也翻译为调用, load 也可以说是调用. call 确实有调用的意思,
+但就这么根据意思给英文加翻译, 那原本更符合的单词咋办? 或者英文里俩词同时出现, 汉语里是俩一样的词?
+一词多义是 1 个词多个意思, 不是每个意思对应一个词; 这种翻译方式也做不到每个意思对应一个汉语, 只是占用其他词.
+
+借调, 转调, 抽调, 调取, 这个 "调" 对应啥英文? 可能不对应英文, 但若对应, 就该对应相同的英文,
+4 个词可以对应 4 个不同的英文, 同 1 个 "调" 字应该对应同 1 个英文.
+
+我曾把 token 翻译为 "信物" 就是因为标记 (明显是 mark), 令牌 (莫名其妙但似乎可用) 都不理想, 但信物也不理想所以不翻译了.
+
+以前不喜欢台湾的翻译, 现在看有许多是台湾的更好. 把 call 翻译为 "呼叫" 比翻译为 "调用" 强.
+
+
+
+
+
+
+
+◇        ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇
+◆        ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆
+◇ ◆        ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇
+◆ ◇        ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆
+◇ ◆ ◇        ◆ ◇ ◆ ◇ ◆ ◇ ◆ ◇
+◆ ◇ ◆        ◇ ◆ ◇ ◆ ◇ ◆ ◇ ◆
+◇ ◆ ◇ ◆        ◇ ◆ ◇ ◆ ◇ ◆ ◇
+◆ ◇ ◆ ◇        ◆ ◇ ◆ ◇ ◆ ◇ ◆
+
