@@ -79,7 +79,12 @@ c:
 
 打开 dosbox 安装 masm. 假设安装在 c:\code\masm\8086\masm611, 要配置环境变量
 关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 添加
-set path=%path%;c:\8086\masm611\bin;c:\8086\masm611\binr;
+set path=%path%;c:\8086\masm611\bin;c:\8086\masm611\binr
+
+要使用 code view (cv) 的帮助, 加上这句
+set helpfiles=c:\8086\masm611\help\*.hlp
+
+mount 是 dosbox 命令, 里面的路径是真实路径; set 和 c: 是 dos 命令, 里面的路径是虚拟的 dos 里的路径
 
 常用命令
 CTRL-F4     重新扫描目录 - 现在感觉不常用, vscode 里随便修改文件, dosbox 里没发现有缓存问题
@@ -89,21 +94,25 @@ CTRL-F10    释放鼠标捕获
 
 https://www.pcjs.org/
 
-看起来有很多硬件配置和软盘, 但网站很难用.
-有些主机用启动盘就行了, 不需要预配置; 但多数是加载个硬件配置, 然后需要你自己安装, 比如
-https://www.pcjs.org/software/pcx86/sys/dos/microsoft/6.22/
-https://www.pcjs.org/software/pcx86/lang/microsoft/masm/6.00/
+看起来有很多硬件配置和软盘, 但网站很难用
 
-看到模拟的屏幕下方有 mount 和 save hd, 于是想, 是不是能保存设置好的主机, 下次从网站打开?
-于是从头安装操作系统和软件, 然后 save hd. 然后遇到下面问题:
-- mount 功能无效. 首先就不知道 mount 该咋用, 在哪个页面 mount? 试着跑到了安装 dos 6.22 的页面,
-    选择保存的 img 文件, 点 mount. 错误: unrecognized disk format
-- 分类莫名其妙. 软件也和硬件一样放目录里, 但点开其实是加载了某个预配置的主机, 并在软盘里放入软件的
-    安装盘. 但安装盘本来就可以在主机的软盘里选择, 没必要和硬件并列; 并且想换主机怎么办?
-- 模拟器的 caps 既不能检测也不能控制键盘的 cpas lock, 反被其控制. 有时 caps 显示的状态和实际状态正相反
-- 预配置的主机在 c 盘里执行 dir 输出的是某个目录的名字, 比如德军总部是 c:/wolf3d, win95 是 c:/windows,
-    这是 bug 吧?
+- 机器的硬件配置是 xml 和 json 文件, 都是自定义语法, 不知道如何操作
+    打开一个机器的页面, 有哪些硬件, 能否更换, 等等, 都做不到
+= 软件分类还可以, 都保存在软盘上, 可以用机器加载软盘
+- 软件页面应该是软件介绍, 不该像现在这样加载一个预配置的机器, 软盘里放入该软件, 希望你在机器里安装它
+    当不想用这个配置的机器时, 没地方更换. 比如
+    https://www.pcjs.org/software/pcx86/sys/dos/microsoft/6.22/
+    https://www.pcjs.org/software/pcx86/lang/microsoft/masm/6.00/
 + 软盘列表里有 the undocumented pc, 我看过这本书, 很喜欢.
+- bug? 预配置的机器在 c 盘里执行 dir 输出的是某个目录的名字, 比如德军总部是 c:/wolf3d, win95 是 c:/windows
+- 设想选择一个预配置的机器, 在上面安装软件, 然后 save machine, 下次直接打开这个保存的机器
+    点击 save machine 下载了一个 js 文件, 需要嵌入到 html 里. 第一个念头就是删掉此 js 并放弃 save machine
+- 设想选择一个预配置的机器, 在上面安装软件, 然后 save hd, 下次打开时先启动与硬盘配套的机器, 再用 mount 加载硬盘
+    安装, save hd, 刷新页面, 选择保存的 img 文件, 点 mount. 错误: unrecognized disk format
+- 机器的 caps 既不能检测也不能控制键盘的 caps lock, 反被其控制. 有时 caps 显示的状态和实际状态正相反
+= 机器屏幕是 canvas. 图像精确; 无法复制命令行输出
+- 不共享剪切板, 不共享文件系统
+
 
 https://copy.sh/v86/?profile=msdos
 
@@ -112,6 +121,10 @@ dir /w /on dos | more
 f3, f7 可以查看执行过的命令, 要用上下箭头切换, 先执行 doskey(.com).
 
 - 很消耗 cpu, 风扇不停的转
+= https://copy.sh/v86/ 似乎能稍微定义硬件配置, 还没尝试
+- caps 和 pcjs.org 的一样是纯粹的累赘
+= 机器屏幕是 div. 图像不精确; 虽不能从屏幕复制输出但能从浏览器 f12 复制元素内容
+- 不共享剪切板, 不共享文件系统
 
 ==================== freedos in virtualbox
 
@@ -147,64 +160,4 @@ https://superuser.com/questions/554886/mount-a-vhd-virtualbox-in-osx
 
 往挂载的 vhd 里面拷贝 masm 和 code 目录之后, 一般还会在虚拟机的 c:/autoexec.bat 里把 ml.exe 所在目录加到 path 环境变量里
 这个文件的属性有系统, 在 windows 里是隐藏的
-
-==================== masm 和 c 的对比
-
-macro of masm                   c
-if, elseif, else, endif         #if, #elif, #else, #endif
-ifdef , elseifdef               #ifdef , #if  defined, #elif  defined
-ifndef, elseifndef              #ifndef, #if !defined, #elif !defined
-ife, elseife                    <none>
-textequ, macro *                #define
-<none>                          #undef
-.err                            #error
-.erre, .errnz                   <none>
-.errdef, .errndef               <none>
-*   c 的宏一行就够了, 因为可以用分号创建许多逻辑行; masm 的行是硬行, 创建单行宏和多行宏语法不同
-    c 的宏只展开一次; masm 的宏一直展开到没有宏为止
-
-within macro definitions        c
-ifb, elseifb                    <none>
-ifnb, elseifnb
-ifidn, elseifidn                <none>
-ifidni, elseifidni
-ifdif, elseifdif                <none>
-ifdifi, elseifdifi
-rest: vararg                    ..., __VA_ARGS__
-.errb, .errnb                   <none>
-.erridn, .erridni               <none>
-.errdif, .errdifi               <none>
-<none 1>                        defined
-<none 2>                        #s
-<none 3>                        s1##s2
-1 可以用宏函数实现
-2 % expr 随处可用, 不限于宏定义里
-3 s1&&s2 随处可用, 不限于宏定义里
-
-Both /Zm and OPTION M510 imply SETIF2:TRUE. with OPTION SETIF2:TRUE
-.err1, .err2
-
-miscellaneous directives        c
-echo, %out                      #pragma message
-include                         #include
-includelib                      #pragma comment(lib)
-<todo: find out>                vc++ __pragma
-
-==================== 其他细节
-
-汇编在 8 位 和 16 位 cpu 的时候是常用语言, 后来就没怎么发展.
-没发展是好事, 发展的语言加入的特性很多都是半成品, 为兼容旧语法又会制造别扭的新语法
-
-网上很多汇编的例子是 16 位的, 看到 /AT, /omf, .startup, org 100h, int 21h 基本就是 16 位 masm
-
-segment:offset = (16 bits segment << 4) + 16 bits offset = 20 bits address
-这个左移在当时的 16 位通用寄存器上做不到
-单看 segment:offset 绝对猜不到是 segment * 16 + offset, 这种写法只能列出俩寄存器的值, 无法表明计算方式
-若 segment << 16 就能表示 32 位地址, 不过没有 cpu 用这种方式. 32 位 cpu 可以把 16bits segment 放到
-32bits offset 前面得到 48bits address, 似乎没有操作系统用这种方式.
-
-印象里寄存器别名有下列特征, 不知是否正确. 不重要
-- 由于寄存器别名, 代码里的寄存器可能对应好几个 cpu 寄存器, 值是这几个寄存器的组合值
-- 所有这些被别名的寄存器都不小于别名的长度, 不会用多个小的寄存器组合成一个大的
-- 段寄存器比如 gs, 代码里是 16 位, 实际上可能对应好几个 64 位寄存器? 或者只有通用寄存器有别名?
 

@@ -1,5 +1,9 @@
 
-[目录](#目录)
+
+- 合集: 热身运动, 💀 HBD & hold your breath
+    - [拼接字符串](#拼接字符串)
+    - [数组](#数组)
+
 
 ## 常见宏代码
 
@@ -150,6 +154,12 @@ endif
         end     start
 ```
 
+
+
+
+
+
+
 ## 目录
 
 - [常见宏代码](#常见宏代码)
@@ -177,6 +187,7 @@ endif
     - [opattr, @cpu, pushcontext, popcontext](#opattr-cpu-pushcontext-popcontext)
     - [常见编译错误](#常见编译错误)
     - [调试?](#调试)
+- [masm 和 c 的对比](#masm-和-c-的对比)
 - [观察与思考](#观察与思考)
     - [退化](#退化)
     - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
@@ -201,9 +212,13 @@ endif
     - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
     - [宏函数的各种失败展开](#宏函数的各种失败展开)
 - [致谢](#致谢)
-- 合集: 热身运动, 💀 HBD & hold your breath
-    - [拼接字符串](#拼接字符串)
-    - [数组](#数组)
+
+
+
+
+
+
+
 
 ## 预处理
 
@@ -1362,6 +1377,50 @@ end
 ### 调试?
 
 masm 不支持调试宏程序, 没有断点和单步执行. echo, -EP, 错误信息是常用的调试手段.
+
+## masm 和 c 的对比
+
+```
+macro of masm                   c
+if, elseif, else, endif         #if, #elif, #else, #endif
+ifdef , elseifdef               #ifdef , #if  defined, #elif  defined
+ifndef, elseifndef              #ifndef, #if !defined, #elif !defined
+ife, elseife                    <none>
+textequ, macro *                #define
+<none>                          #undef
+.err                            #error
+.erre, .errnz                   <none>
+.errdef, .errndef               <none>
+*   c 的宏一行就够了, 因为可以用分号创建许多逻辑行; masm 的行是硬行, 创建单行宏和多行宏语法不同
+    c 的宏只展开一次; masm 的宏一直展开到没有宏为止
+
+within macro definitions        c
+ifb, elseifb                    <none>
+ifnb, elseifnb
+ifidn, elseifidn                <none>
+ifidni, elseifidni
+ifdif, elseifdif                <none>
+ifdifi, elseifdifi
+rest: vararg                    ..., __VA_ARGS__
+.errb, .errnb                   <none>
+.erridn, .erridni               <none>
+.errdif, .errdifi               <none>
+<none 1>                        defined
+<none 2>                        #s
+<none 3>                        s1##s2
+1 可以用宏函数实现
+2 % expr 随处可用, 不限于宏定义里
+3 s1&&s2 随处可用, 不限于宏定义里
+
+Both /Zm and OPTION M510 imply SETIF2:TRUE. with OPTION SETIF2:TRUE
+.err1, .err2
+
+miscellaneous directives        c
+echo, %out                      #pragma message
+include                         #include
+includelib                      #pragma comment(lib)
+<todo: find out>                vc++ __pragma
+```
 
 ## 观察与思考
 
