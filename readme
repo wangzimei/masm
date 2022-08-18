@@ -32,7 +32,7 @@ launch dosbox, install masm 6.x
 write code in any editor, switch to dosbox, ml file
 
 debug generated executable using cv.exe
-f4 = hide window, f5 = f7 = go, f8 = f10 = proceed, f9 = break point, 没找到 trace
+f4 = hide window, f5 = f7 = go, f8 = trace, f9 = break point, f10 = step
 
 redirect ml outputs to file named fff
 > fff ml -Zs dd.msm
@@ -44,20 +44,6 @@ view binary
     format-hex out/dd.obj
 
 https://en.wikipedia.org/wiki/Microsoft_Macro_Assembler
-
-==================== 欠缺的内容
-
-x86, x64 protected mode ring0                           驱动程序?
-8086, x86, x64 without os                               如何编译是个问题, 在另外的系统里编译?
-intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
-gpu assembly programming                                masm 显然编译不了
-
-==================== faq
-
-? 为什么很多汇编代码的关键字都是大写
-! 汇编时代的文本编辑器没有语法高亮
-- 键盘没有小写按键的时期
-- masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
 
 ==================== dosbox and config
 
@@ -77,18 +63,38 @@ C:\Users\王子美\AppData\Local\DOSBox\dosbox-0.74-3.conf
 mount c c:\code\masm
 c:
 
+禁用捕获鼠标: 配置文件里搜索 autolock=true, 改成 false
+
 打开 dosbox 安装 masm. 假设安装在 c:\code\masm\8086\masm611, 要配置环境变量
 关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 添加
-set path=%path%;c:\8086\masm611\bin;c:\8086\masm611\binr
+set path=c:\8086\masm611\bin;c:\8086\masm611\binr;%path%
 
-要使用 code view (cv) 的帮助, 加上这句
-set helpfiles=c:\8086\masm611\help\*.hlp
+[autoexec] 还可以添加这些不重要的语句
+code view (cv) 帮助
+    set helpfiles=c:\8086\masm611\help\*.hlp
+让 cv 使用预配置的 clrfile.cv4 和 current.sts, 就不再在当前目录生成这俩文件了
+    set init=c:\8086\masm611\init
 
 mount 是 dosbox 命令, 里面的路径是真实路径; set 和 c: 是 dos 命令, 里面的路径是虚拟的 dos 里的路径
 
 常用命令
 CTRL-F4     重新扫描目录 - 现在感觉不常用, vscode 里随便修改文件, dosbox 里没发现有缓存问题
 CTRL-F10    释放鼠标捕获
+
+==================== online tools
+
+https://defuse.ca/online-x86-assembler.htm
+
+x86, x64 汇编和反汇编, 选项少, 易用, 有的汇编结果不正确
+
+https://godbolt.org/
+
+语言选 assembly, 编译器版本很多但种类不多, 没找到 16 位汇编
+nasm 64 位代码的编译选项 -felf64
+
+https://onlinedisassembler.com/odaweb/
+
+反汇编, 选项多
 
 ==================== online emulator
 
@@ -160,4 +166,18 @@ https://superuser.com/questions/554886/mount-a-vhd-virtualbox-in-osx
 
 往挂载的 vhd 里面拷贝 masm 和 code 目录之后, 一般还会在虚拟机的 c:/autoexec.bat 里把 ml.exe 所在目录加到 path 环境变量里
 这个文件的属性有系统, 在 windows 里是隐藏的
+
+==================== faq
+
+? 为什么很多汇编代码的关键字都是大写
+! 汇编时代的文本编辑器没有语法高亮
+- 键盘没有小写按键的时期
+- masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
+
+==================== 欠缺的内容
+
+x86, x64 protected mode ring0                           驱动程序?
+8086, x86, x64 without os                               如何编译是个问题, 在另外的系统里编译?
+intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
+gpu assembly programming                                masm 显然编译不了
 

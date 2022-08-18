@@ -6,28 +6,30 @@ https://github.blog/changelog/2021-04-13-table-of-contents-support-in-markdown-f
 
 ## x86
 
+初学 x86 汇编最大的难点是 intel 发明的大量杂乱无章的术语.
+
 ### mnemonic
 
 汇编语言没有标准语法, 汇编器在 cpu 厂商提供的 mnemonic 语法基础上创造自己的语法.
 
 ```
-            masm directives  - mnemonic + arguments (see below) and infos
-            /                                                           \
-source code                                                                 obj file
-            \                                                           /           \
-            mnemonic + arguments    -   opcode + arguments = machine code
-                        \                           /                               executable
-                    mnemonic + typeof arguments = opcode
+            masm directives  -  mnemonic + arguments (see below) and infos
+            /                                                            \
+source code                   _____________________                         obj file
+            \               /                       \                    /          \
+            mnemonic + arguments          opcode + operands - machine code
+                        \                   /                                       executable
+                    mnemonic + typeof arguments
                                                                                     /
-                                                                            obj file
+( from left to right -> )                                                   obj file
+
+   mnemonic = name of opcode                          opcode = operation code = cpu function index
+  <no name> = arguments of mnemonic                 operands = arguments of opcode (may be implicit)
+  statement = mnemonic + arguments               instruction = prefix + opcode + modr/m + sib + operands
+source code = statements + compiler directives  machine code = instructions
 ```
 
-**opcode** = cpu function index<br>
-some opcodes have text names, these names are **mnemonic**s<br>
-**prefix** + opcode + **ModR/M** + **SIB** + **ops** = a piece of **machine code**<br>
-**instruction** refers to anyone of: statement of assembly code, piece of machine code, mnemonic, opcode, other
-
-因为 intel 原本的设计和后来 cpu 指令的的增加, 一个 opcode 不能或不再能精确对应到某个 cpu 功能, 需额外指定参数, 这些参数是 prefix, ModR/M, SIB. 它们的名字大致表明了作用, 但那名字和作用都不重要, 它们唯一的作用是: **因为 opcode 字节不够, 所以增加字节, 直到构成的字节组可以索引指令集里每一条指令**.
+因为 intel 原本的设计和后来 cpu 指令的的增加, 一个 opcode 不能或不再能精确对应到某个 cpu 功能, 需额外指定参数, 这些参数是 prefix, ModR/M, SIB. 它们的名字似乎描述了作用, 但都不重要, 它们唯一的作用是: **因为 opcode 字节不够, 所以增加字节, 直到构成的字节组可以索引 cpu 的每一个功能**.
 
 https://wiki.osdev.org/X86-64_Instruction_Encoding<br>
 An x86-64 instruction may be at most 15 bytes in length. when either Displacement or Immediate is 8 bytes, another can not be encoded
@@ -90,7 +92,7 @@ c7      opcode
 
 1. c6 06 0002 03 ...
 
-几个变形
+几个等式
 ```
     c606000203
 =   no-prefix opcode#c6 modr/m#6 no-sib 0002 03
@@ -99,7 +101,7 @@ c7      opcode
 =   mov byte [0x200], 3
 ```
 
-`c70603010300 mov word ptr [0103], 0003`, 有 `C7 MOV r/m16/32 imm16/32`, 16 位代码排除 m32 和 imm32 得到 c7 = mov r/m16 imm16, 前面知道 6 是 disp16, 得到 c706 = mov m16 imm16. 所以 03010300 的第一个 16 位是数据的地址, 数据长度是 m16 = 16 位 = 2 字节; 第二个 16 位是 imm16.
+`c70603010300 mov word ptr [0103], 0003`, 有 `C7 MOV r/m16/32 imm16/32`, 16 位代码排除 m32 和 imm32 得到 c7 = mov r/m16 imm16, 前面知道 6 是 disp16, 得到 c706 = mov m16 imm16. 所以 03010300 的第一个 16 位是数据的位置, 数据长度是 m16 = 16 位 = 2 字节; 第二个 16 位是 imm16.
 
 可以看到
 - 助记符往往不包括 opcode 需要的 prefix, modr/m, 但当无法确定 op 的长度时, 需要写比如 byte 或 byte ptr, 帮助生成 modr/m
@@ -124,6 +126,187 @@ a.k.a. micro-ops, μops, micro-actions<br>
 https://en.wikipedia.org/wiki/Micro-operation
 
 主要是 intel 用, 前面说的 microcode 有很多厂商都用. 一般看到莫名其妙的名词扎堆儿出现, 基本就是 intel.
+
+### types of operands
+
+这里有好些关于地址的名词, 基本都出自 intel cpu 的**寻址模式**
+
+**register**. r8, r16, r32, r64; sreg = segment register
+
+**immediate**. numeric literal, 数值字面量; 是指令的一部分, 写入生成的二进制文件. imm8, imm16, imm32, imm64, ... 指**期望**的长度, immediate 自身不含长度信息; 指令其他部分可以确定长度时, 比如 `mov ax, 3`, ax 只接受 word, 则 3 = immediate = imm16; 指令其他部分无法确定长度时, 比如 `mov [100], 3`, 需在任一参数前加长度限定, `mov byte [100], 3`, byte 令 3 = immediate = imm8.
+
+从代码看操作数 operands 很多是立即数 immediate, 不同的 opcode 把立即数视为不同的类型.
+
+**offset**. 偏移. 16 位模式用 [segment:offset](#段) 表示地址, segment 和 offset 单独都表示不了地址, 但 offset 经常**隐含**依赖一个 segment 以表示地址; 32 位平坦模式和 64 位长模式都只用 offset 表示地址, 不用 segment. intel 照例有更多说法, 把 segment 和 offset 叫逻辑地址, segment:offset 叫物理地址.
+
+**relative offset**. 编译器计算出来的 immediate, 指相对于下一条语句的偏移; rel8, rel16, rel32; 用于 jmp, jcc, call, loop; rel8 有 `目标偏移 = byte(下一条语句的偏移 + val(rel8))`, rel16 有 目标偏移 = word(...), rel32 是 dword(...); 比如 `100: jmp 104` 汇编为 `eb 02`, opcode eb 仅接受 rel8, 02 就是 rel8; 该语句位于 100, 2 字节, 则下一条语句在 102, 相对于 102 偏移 02 得到 104
+
+\* *之所以要编译器计算可能是因为 intel 没有提供类似 jmp-rel 的助记符. 由于 offset 已经具有 "相对段的偏移" 和 "地址" 两个意思, 这里的偏移就不太好意思也叫 offset, 所以创造了个 relative offset, 而这马上就让人怀疑: 难道还有不 relative 的 offset? 那还算 offset 吗? 不过, 似乎听过 "absolute offset" 的说法*.
+
+**effective address** = Base + Index * Scale + Displacement; 名字是地址, 其实是偏移<br>
+https://stackoverflow.com/questions/36704481/what-is-an-effective-address
+
+- **displacement**. immediate; disp8, disp16, disp32; 就是 instruction 里的 displacement
+- 16 bit: base (base register) = bx, bp (base pointer); index = si (source index), di (destination index)<br>
+    由于没有 sib = Scale Index Base, 16 位代码和使用 16 位寄存器的 32 位代码不能使用 scale
+- 32, 64 bit: base = any register; index = any register except esp, rsp<br>
+    scale = 1, 2, 4, 8
+
+**memory** = [effective address]; m8, m16, m32, m64; 有些编译器在使用段寄存器重写时可以省略方括号 square brackets, debug 里不能省; 不重写时段寄存器 = ds
+
+**moffset (amd), moffs (intel)**. immediate, 没有 modr/m 字节的 memory; moffs8, moffs16, moffs32; 仅用在几个 mov 里
+
+\* *moffs 这名字问题极大. 不是说 intel 创造的各种奇葩名字比如把 moffset 写为 moffs, 而是说这个名字里的 offset. 显然 moffs 用 m 指代 memory, 用 offs 指代 offset; 从名字上看 moffs 和 memory 的区别在前者是 offset 处的值. 但事实不是, moffs 和 memory 都是 offset 处的值, 区别是前者不需要 modr/m. 这区别不放在名字上, 反而放个莫名其妙并已严重滥用的 offset, 是纯粹的误导.*
+
+```
+literal 3 in 16 bit code    instruction         typeof 3
+     0: jmp 3               eb 01               rel8
+   100: jmp 3               e9 00 ff            rel16
+        jmp 0x100:3         ea 03 00 00 01      a part of ptr16:16
+        mov ax, 3           b8 03 00            imm16
+        mov [3], ax         a3 03 00            ???, maybe disp16?          typeof [3] = moffs16
+        mov [3], bx         89 1e 03 00         disp16 (in modr/m byte),    typeof [3] = m16
+        mov [bx + 3], ax    89 47 03            disp8  (in modr/m byte),    typeof [bx + 3] = m16
+```
+
+**r/m16** = r16 or m16; 按正常的理解 r/m16 = r or m16, 这里却不是; 猜测推导过程为 r/m16 = (r/m)16 = r16/m16 = r16 or m16; 这过程当然漏洞百出, 比如 r16/m16 = (r16/m)16 = r1616/m16 = (r1616/m)16 = r161616/m16 = ...; 不过或许压根儿没有推导过程, 而是一个规定, 那样的话就没有疑点了
+
+**pointer**. immediate, 没有 modr/m 字节的地址; 只有两种形式, 16 位模式是 ptr16:16, 32 位模式是 ptr16:32, 合称 **ptr16:16/32**. ptr16:16 在代码中写作 0xabcd:0x1234, 在生成的指令中排列为 34 12 cd ab; ptr16:32 是 0xabcd:0x12345678 和 78 56 34 12 cd ab. 仅用于跳转, 冒号后的或指令前段的数字给 eip/ip, 冒号前的或指令后段的数字给 cs; 仍然是分段地址, ptr16:16 用 2 个 16 位表示 20 位地址, ptr16:32 用 16 + 32 位, 但不清楚表示几位地址, 可能是 eip 里的 32 位因为 32 位模式不使用分段地址, cs 不参与地址计算. 分段模式下 pointer 是真正的地址, offset 是地址的一部分; 不分段模式下 offset 是真正的地址, pointer 是真正的地址 + 额外的值 (用来修改 cs). 因此在汇编里 "指针 (的值) 就是地址, 地址就是指针" 仍然成立; 内存是个数组, 指针 = 地址 = 序号.
+
+**m16:16/32/64** = m16:16 or m16:32 or REX.W m16:64; 是 memory, 即 [偏移]; 仅用于跳转; ptr16:16/32 编译为指令的一部分, 这部分若放在内存中就是 m16:16/32.
+
+曾参照 ptr16:16 的写法把 m16:16 写为 [0x1234]:[0x5678], 怎么也编译不过. 后来才知道 m16:16 应看作 m(16:16) - m 代表这是个 memory, 所以写法是 [effective address]; 16:16 代表 implicit-segment:effective-address 开始处的 memory 把冒号后的 16 位值保存在前面, 冒号前的 16 位值保存在后面, 共 16 + 16 = 32 位. 后来也知道了 ptr16:16 虽写作 0x123:0x456 但不应看作 ptr16:ptr16; pointer 用于表示 segment:offset, 不存在单独的 ptr16; 冒号不能像斜杠那样展开.
+
+\* *在 http://ref.x86asm.net/ 上看到大量莫名其妙的缩写, 尤其是 m16:16 和 r/m16/32, 反复遇到, 每次都不理解. 于是决定弄清那些缩写的含义. 查了半天, 先理解了 rel16/32, 又在 https://www.scs.stanford.edu/05au-cs240c/lab/i386/s17_02.htm 17.2.2.2 Instruction 找到了 r/m16 的解释, 这才大致理解了 r/m16/32, 并通过 https://www.felixcloutier.com/x86/jmp 验证了我的理解; 经过反复试验和查看 https://stackoverflow.com/questions/51832437/encoding-jmp-far-and-call-far-in-x86-64 又理解了 m16:16. 这些学到的知识变成了本节: types of operands. 这些知识当然无法解决遇到其他缩写时的疑问, 因为那些缩写都是随意编出来的.*
+
+### 段
+
+https://en.wikipedia.org/wiki/RAM_limit<br>
+8086, 8088, 80186, 80188 是 16 位寄存器和 20 位地址线
+
+cpu 能寻址 20 位, 16 位寄存器表示不了 20 位地址, intel 就规定用两个 16 位寄存器 - 段寄存器和偏移寄存器 - 保存一个 20 位地址, 写作 segment:offset, segment * 16 + offset = 20 位地址. 我既不清楚为什么把乘以 16 的那个部分叫 segment, 也不清楚为什么做成把一个 16 位值乘以 16. 根据公式可知
+- 每个段的地址都是 16 的整数倍
+- offset 的大小决定段的大小, 是 2 ** 16 = 65536 = 64k
+- 两个段的重叠部分至多 64k - 16 - 16 = 65504, 所以大多数地址都能对应好多不同的 segment:offset
+
+intel 设计了 3 种段, 用不同的寄存器保存地址, 好些指令**隐含**使用这些寄存器:
+- 代码 cs:ip
+    - 修改 cs 和 ip 必须一次性完成, 专有数据类型 pointer (ptr16:16/32)
+- 栈 ss:sp
+    - ss:sp 保存的内存地址叫栈顶. push arg 从 sp 减去 sizeof arg, 然后把 arg 写到栈顶
+    - 修改 ss 和 sp 往往一次性完成; mov ss, r/m16 的下一条指令无法中断
+    - push, pop; call, retn, retf; int, iret **隐含**使用栈
+- 数据 ds:reg 由程序员使用, 程序员定义其意义, intel 只规定了一些默认段, 代码可以覆盖默认值
+    - bx, si, di 默认段是 ds; bp 默认 ss
+    - 有些指令使用两组数据, 源数据 ds:si 和目的数据 es:di
+    - `lds/les r16/32, m16:16/32`, `lss/lfs/lgs r16/32/64, m16:16/32/64` 用 `jmp m16:16` 修改 cs:ip 的方式修改 ds/es/ss/fs/gs:reg<br>
+        这只是增加 m16:16/32/64 的利用率; 修改数据地址无须一次性完成, 可以用两条指令**依次**修改
+
+386 加了 fs, gs 两个段寄存器. 386 通用寄存器是 32 位, 保护模式下寻址也是 32 位, 不需要段寄存器, 段寄存器用来保存别的数据.
+
+### jmp short, near, far, long
+
+-| a.k.a. | opcode | opcode extension | notes
+-|-|-|-|-
+JMP rel8            | short     | eb
+JMP rel16/32        | near      | e9
+JMP r/m16/32        | near      | ff | 4 | r/m16/32 = r16, r32, m16, m32
+JMPF ptr16:16/32    | far, long | ea
+JMPF m16:16/32      | far, long | ff | 5
+
+示例: near jump rel16
+```
+debug
+-a
+1337:0100 jmp 0
+1337:0103
+-u 100 l3
+1337:0100 E9FDFE        JMP	0000
+-r
+AX=0000  BX=0000  CX=0000  DX=0000  SP=00FD  BP=0000  SI=0000  DI=0000
+DS=1337  ES=1337  SS=1337  CS=1337  IP=0100   NV UP EI PL NZ NA PO NC
+1337:0100 E9FDFE        JMP	0000
+-t
+... IP=0000
+1337:0000 CD20          INT	20
+-q
+```
+
+1. e9 = jmp rel16
+1. 考虑字节序, 参数是 0xfefd
+1. 执行 e9fdfe 前 ip = 0x100
+1. 执行 e9fdfe 时 ip = 0x103
+1. 执行 e9fdfe 后 ip = 0x103 + 0xfefd = 0x10000 -> to word = 0
+
+示例: near jump [r16, r32, m16, m32]; far jump
+```
+operand                                 32 bit                      16 bit
+r16         jmp ax                   66 ff e0                       ff e0
+r32         jmp eax                     ff e0
+m16         jmp word ptr ds:0x1234   66 ff 25 34 12 00 00 (*3)      ff 26 34 12 (*1)    jmp [0x1234]
+m32         jmp [0x12345678]            ff 25 78 56 34 12 (*2)
+
+*1. opcode extension = 4, 从 http://ref.x86asm.net/coder32.html#modrm_byte_16
+找 (In decimal) /digit (Opcode) = 4 的列, 然后找 disp16 的行, 交点是 26
+
+*2. http://ref.x86asm.net/coder32.html#modrm_byte_32 列 4 和行 disp32 的交点是 25
+
+*3. 32-bit ModR/M Byte 已经没有位置表示 op 是 m16 了, 所以额外用一整个前缀字节 66 表示
+前缀字节的选择很有限, 不能和已有的 opcode 重复. 可以看到前缀 66 修饰的指令尽管用了较短的操作数但长度没变
+
+m32         jmp cs:0x12345678        2e ff 25 78 56 34 12           <- cs segment override
+m32         jmp es:0x12345678        26 ff 25 78 56 34 12           <- es segment override
+m32         jmp ss:0x12345678        36 ff 25 78 56 34 12           <- ss segment override
+m32         call [0x12345678]           ff 15 78 56 34 12
+
+ptr16:32    jmp 0xaabb:0x1122           ea 22 11 00 00 bb aa        ea 22 11 bb aa      ptr16:16
+
+* 此时误以为 m16:16 语法类似 [0x1234]:[0x5678], 编译不过 (必然的), 于是打算凑个 16 位机器码看反汇编成啥
+opcode extension 5 要求使用 ModR/M Byte, 但 modr/m 里没有 disp16:disp16, 用 disp16 凑了个 2e, 进而凑出个
+ff 2e 34 12, 反汇编得到 jmp far [0x1234]. what the "far" is this? 用 32 位编译 jmp far [0x1234] 得到
+ff 2d 34 12 00 00   jmp FWORD PTR ds:0x1234 - 原来 far 是 fword, oooooright. 还凑出了 
+ff 2f               jmp FWORD PTR [edi]
+ff 2e               jmp FWORD PTR [esi]. 理解 m16:16 之后有了下面代码
+
+m16:32      jmp far [0x100]             ff 2d 00 01 00 00           ff 2e 00 01         m16:16
+m16:32      jmp far [di]             67 ff 2d                       ff 2d               m16:16
+m16:32      jmp far [edi]               ff 2f
+m16:32      jmp far [ds:0x100]       3e ff 2d 00 01 00 00
+```
+
+- 不知这些网站 (defuse.ca, godbolt.org, odaweb) 为啥把 32 位 far jmp (ff 2d ..., ff 2f, 等) 反汇编成 jmp fword ptr. fword [xxx] 是 m48, 能自动变为 m16:32?
+- 32 位的 `jmp far [di]` 如何执行? di 16 位, 能保存 32 位地址? 0x67 是 address-size override prefix, 先保留疑问吧
+
+示例: jmp dword 不是 jmp far
+```
+debug
+-a
+1337:0100 jmp far [di]
+1337:0102 jmp dword [di]
+1337:0104
+-u 100 l4
+1337:0100 FF2D          JMP	FAR [DI]
+1337:0102 FF25          JMP	[DI]
+-q
+```
+
+这说明 debug 不把 dword [di] 视作 m16:16, 并且似乎是忽略了 dword. defuse.ca 编译的 far jump 明显错误; godbolt.org 编译出的代码连他自己都不认, 放代码窗口就报错; 比如用 -felf64 编译 `jmp far [rdi]` 得到 `48 ff 2f rex.W jmp fword ptr [rdi]`, 不知这代码对不对, m16:64 的长度应该是 tbyte 吧? 它给出 rex.W fword ptr; 生成的语句又编译不过, 没法验证
+
+示例: m16:16 的第 1 个 2 字节给 ip, 第 2 个 2 字节给 cs; 这和 callf, retf 时栈里的 cs 和 ip 顺序一致.
+```
+debug
+-a
+1337:0100 db 11 22 33 44 
+1337:0104 jmp far [100]
+1337:0108
+-d 100 l8
+1337:0100  11 22 33 44 FF 2E 00 01                           ."3D....
+-t =104
+AX=0000  BX=0000  CX=0000  DX=0000  SP=00FD  BP=0000  SI=0000  DI=0000  
+DS=1337  ES=1337  SS=1337  CS=4433  IP=2211   NV UP EI PL NZ NA PO NC 
+4433:2211 0000          ADD	[BX+SI],AL                         DS:0000=CD
+-q
+```
 
 ### 内存地址空间
 
@@ -249,78 +432,6 @@ cpu 运行在 64 位模式时可以用 bios 改变硬件映射的地址或者把
 ; 输入 - 访问 端口xxx?? 读取键盘
 ; 输出 - 访问映射到地址 xxx??? 的屏幕缓冲区
 ```
-
-**内存 + 寄存器: 栈**
-
-ss:sp 保存的内存地址称作栈顶. push arg 从 sp 减去 sizeof arg, 然后把 arg 写到栈顶
-
-push, pop; call, retn, retf; int, iret **隐含**使用栈
-
-### 段
-
-https://en.wikipedia.org/wiki/RAM_limit<br>
-8086, 8088, 80186, 80188 是 16 位寄存器和 20 位地址线
-
-cpu 能寻址 20 位, 16 位寄存器表示不了 20 位地址, intel 就规定用两个 16 位寄存器 - 段寄存器和偏移寄存器 - 保存一个 20 位地址, 写作 segment:offset, segment * 16 + offset = 20 位地址. 我不清楚为什么把乘以 16 的那个地址叫段. 根据计算公式可知
-- 每个段的地址都是 16 的整数倍
-- offset 的大小决定段的大小, 是 2 ** 16 = 65536 = 64k
-- 两个段的重叠部分至多 64k - 16 - 16 = 65504, 所以大多数地址都能对应好多不同的 segment:offset
-
-intel 设计了 3 种段, 用不同的寄存器保存段里的地址, 好些指令**隐含**使用这些寄存器:
-- 代码 cs:ip
-- 栈 ss:sp
-- 数据 ds:xxx. 又分为源数据 ds:si 和目的数据 es:di
-
-386 加了 fs, gs 两个段寄存器. 386 寄存器是 32 位, 保护模式下寻址也是 32 位, 不需要段寄存器, 段寄存器用来保存别的数据.
-
-### relative offset; jmp short, near, far, long
-
--| a.k.a. | opcode | opcode extension
--|-|-|-
-JMP rel8            | short     | eb | -
-JMP rel16/32        | near      | e9 | -
-JMP r/m16/32        | near      | ff | 4
-JMPF ptr16:16/32    | far, long | ea | -
-JMPF m16:16/32      | far, long | ff | 5
-
-\* http://ref.x86asm.net/ `Example: Opcode Extensions`, `Codes for Addressing Method`
-
-rel8, rel16 是 **relative offset**, 是有符号整数. 相对偏移确实比绝对偏移灵活. 1 字节的偏移, 绝对的话只能在 [0, 255], 实用性比不了 [-128, ip, 127], ip 是 jmp 的下一条指令的地址; 由于地址绕回, 2 字节的相对偏移可以标记整个 64k 段.
-
-```
-debug
--a
-1337:0100 jmp 0
-1337:0103
--u
-1337:0100 E9FDFE        JMP	0000
-1337:0103 ...
-...
--r
-AX=0000  BX=0000  CX=0000  DX=0000  SP=00FD  BP=0000  SI=0000  DI=0000
-DS=1337  ES=1337  SS=1337  CS=1337  IP=0100   NV UP EI PL NZ NA PO NC
-1337:0100 E9FDFE        JMP	0000
--t
-... IP=0000
-1337:0000 CD20          INT	20
--q
-```
-
-1. e9 = jmp rel16
-1. 考虑字节序, 参数是 0xfefd
-1. 执行 e9fdfe 前 ip = 0x100
-1. 执行 e9fdfe 时 ip = 0x103
-1. 执行 e9fdfe 后 ip = 0x103 + 0xfefd = 0x10000 -> to word = 0
-
-### run
-
-1. 查看 cs:ip 指向的内存处的字节
-1. 根据那个字节确定指令长度, 设 = n
-1. ip += n
-1. 执行指令
-1. loop
-
-intel 不让直接修改 cs 和 ip, 只让通过 jmp, jcc; call, retn, retf; int, iret 间接修改
 
 ### interrupt
 
@@ -454,8 +565,7 @@ win32 程序退出时要调用 ExitProcess
 
 ### dos api
 
-下面网站有 dos 和 bios 的详细讲解, 是查阅 dos api 的首选网站<br>
-http://www.techhelpmanual.com/2-main_menu.html
+dos 和 bios 详解 http://www.techhelpmanual.com/2-main_menu.html
 
 dos api 基本是 int 21h. 为啥用 int 不用 jmp, call 呢? 有几种说法
 - int 指令更短 - 没错, 但要额外做把字节通过 ivt 转换到实际地址的工作. 宁愿消耗运行时间也要缩短代码? 有可能
@@ -718,7 +828,8 @@ L4038 很明确, L4055 很难理解, 它俩说的却是同一个意思: 需要�
 因此要用 end 指定个标签. 把 db 1 改为正常的返回语句 (*), 缩进, 得到下面的完整程序.
 
 \* 根据 8086/refs/stack 知道 exe 运行时栈顶的 word 被改为 ff ff; 为防止覆盖那里的指令需要弄点填充字节. 写填充字节时为了确定填几个, 试了几个数值, 发现至少得 4 字节程序才正常退出, 但在 debug 里执行不正常; 用 debug 一看发现不仅是修改了最后两字节. debug out\dd.exe 时, 查看内存没啥问题; t 执行一句后再查看, 前 10 字节内容都变了. 加大填充的长度发现最后 10 字节会被修改; 隐约记得以前见过这情况. 因此要在 debug 里也能正常退出得填充 10 字节 (那填充 4 字节算不算正确?). mov ax, 4c00h int 21h 是 5 字节, 加上 10 个填充字节等于 15 字节. 为了对齐到 word 再加 1 字节, 填充了 11 字节, 否则起始 ip 是 1 而不是 0; 尽管我不知道起始 ip 是 1 有啥问题.
-**todo** 探究这个修改最后 10 字节的问题
+
+todo 探究这个修改最后 10 字节的问题
 
 ### the program
 
@@ -824,7 +935,7 @@ https://wiki.osdev.org/MZ
 
 masm 的 source-charset 固定为 ascii; 串原样放入二进制, 相当于 execution-charset = source-charset; 无需转义字符, 因为指定字符时既可以用字面量也可以用数字, 字符字面量就是其 ascii 值.
 
-### 命令行选项
+### 所有命令行选项
 
 ml 开关 (选项) 的起始字符是 - 或 /, 开关区分大小写; link 只能是 /, 不区分大小写.
 
@@ -880,7 +991,7 @@ ml -omf -Foout/ cmdln/f1.asm -Foout/ cmdln/f2.asm -Foout/ cmdln/f3.asm -Feout/
 https://github.com/MicrosoftDocs/cpp-docs/issues/1305<br>
 https://github.com/MicrosoftDocs/cpp-docs/issues/1525
 
-**常用命令行选项**
+### 单个命令行选项
 
 ```
 ml /?
@@ -890,11 +1001,37 @@ ml -?
 /Zs Perform syntax check only
 /c  Assemble without linking
 
+todo
+/Fl
+https://stackoverflow.com/questions/29488745/masm-assembly-listing-file-interpretation
+610 guide Appendix C Generating and Reading Assembly Listings
+
+
 link /?
 
 debug
 -?
 ```
+### 编译错误
+
+masm611/errmsg.txt 解释了部分编译错误.
+
+#### A2076 
+
+error A2076: jump destination must specify a label.
+
+A direct jump's destination must be relative to a code label. 
+
+intel 在 near jmp 后看到立即数就认为是相对偏移; masm 必须看到 label, 比如 `s: jmp s - 100h`, 不能写 `jmp 0`
+
+#### LNK1190
+
+fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
+
+> http://masm32.com/board/index.php?topic=3114.0 wjr April 15, 2014, 07:06:37 AM<br>
+If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
+should be 0x0006 IMAGE_REL_I386_DIR32), then you should be able to see at least one of these in the
+IMAGE_RELOCATION records. The symbol name and RVA are also displayed which should help narrow things down.
 
 ## masm 语法
 
@@ -902,16 +1039,20 @@ masm 的关键字分两种
 - cpu 规定的指令集的指令助记符
 - masm 规定的指示, 符号, 操作符
 
-### ptr - coercion
+### ptr, coercion, 变量, 静态类型
 
 http://www.phatcode.net/res/223/files/html/Chapter_8/CH08-4.html<br>
-看完网页后想看看是啥书, 一看是 Randall Hyde 的 the art of assembly language programming. 我记得以前照该书写过一些练习代码, 现在找不到了
+看完网页后想看看是啥书, 一看是 Randall Hyde 的 the art of assembly language programming. 记得以前照该书写过一些练习代码, 现在找不到了
 
-ptr 究竟是 intel 还是 masm 发明的? 网上没找到答案, x86 指令集里没有, debug 的反汇编里有, 用 debug 写汇编时可省略. 因为 debug 的作者受雇于 microsoft 所以我猜是 masm 的发明. 听说 masm 很长时间只有 1 个程序员用 c 开发维护, 这程序员是谁? 应该不是 debug 的作者 Tim Paterson.
+ptr 谁发明的? intel? masm? 网上没找到答案, x86 指令集里没有, 各种反汇编里经常见, 用 debug 写汇编时可省略. 有几个线索
 
-`mov byte ptr [200], 3` 和 `mov byte [200], 3` 完全一样, 那 masm 到底为啥需要 ptr 这 3 个字?
+- debug 的作者 Tim Paterson 曾受雇于 microsoft
+- masm 很长时间只有 1 个程序员用 c 开发维护, 这程序员是谁? 和上一条没啥联系, 不大可能是 Tim Paterson
+- 好多 fps 游戏都用 doom (quake?) 的源代码, 那么各种反汇编出来的 ptr 是不是因为这些反汇编程序都使用了同一坨源代码?
 
-`mov 长度 内存, 立即数` 用来解决这种问题: `mov 内存, 立即数` 时不知道内存指出的是 byte, word 或者其它, 所以用额外的词 - 长度 - 去说明: `mov word [bx], 5`. mov byte, move word, ... 是不同的指令. 能从操作数确定长度比如 mov bx, 3 时无需指出长度, 汇编器会生成正确的 opcode; 无法确定时才需要指出.
+`mov byte ptr [200], 3` 和 `mov byte [200], 3` 完全一样, 那 masm 为啥需要 ptr 这 3 个字?
+
+`mov 长度 内存, 立即数` 解决这个问题: `mov 内存, 立即数` 时不知道内存指出的是 byte, word 或者其它, 所以用额外的词 - 长度 - 去说明: `mov word [bx], 5`. mov byte, move word, ... 是不同的指令. 能从操作数确定长度比如 mov bx, 3 时无需指出长度, 汇编器会生成正确的 opcode; 无法确定时才需要指出.
 
 ```
 debug
@@ -938,37 +1079,115 @@ debug
 - (16 位 cpu?) 只能 ptr 为 byte, word; dword, tbyte 变成 byte; qword 变成 word. 这个完全看不出规律
 - 数字在内存中的字节顺序
 
-masm 要求显式重写段寄存器, `mov [200], word ptr 3` 要写为 `mov ds:[200], word ptr 3`. 毫无用处: 访问内存默认的段寄存器是 ds, 不用 ds 时必须加前缀, 本来就没有歧义. masm 要求重写是因为他胡乱解释 `[200]`, 只有重写才能抑制该行为.
+ptr 啥意思? pointer? 从用法上看它和 pointer 的联系真的很小. word ptr [200] 是把 [200] 视作 word*? 把 200 视作 word* 才正确. word [200], [word ptr 200] 都正确, 唯独 word ptr [200] 不正确; byte ptr 3 明显不是把 3 视作 byte* 而是视作 byte; 尽管前面知道 ptr 总是作用于内存, 可每次看到 byte ptr 3 还是感到别扭, 并且刚讨论了即使它放内存前也不正确.
 
-masm 的变量, 假设有 `I byte ?`
+`word ptr` 总让我想到 c++ 的 `word*`, 而 `[p]` 显然是 c++ `*p`, 所以 `word ptr [200]` 就像 `word* *200`, 明显的语法错误. 正确写法是 `*(word*)200`. ptr 如果换成 coercion 或 cast 就好多了, word coercion 3, word cast [200].
 
-1. 原来需要 ptr 的指令现在不需要了, `mov [200], byte ptr 3` 要写为 `mov I, 3`
-1. 原来毫无歧义的语句现在必须用 ptr 添加重复信息了, `mov ax, [200]` 要写为 `mov ax, word ptr I`
+Randall Hyde 把这个操作叫 coercion. 后来有一天看到个网页, accepted answer 说 word ptr 这样的操作叫 conversion 或 cast, 就是不叫 coercion, coercion 是 implicit conversion. 再看其他答案是各有说法. 看来 coercion 在不同人那里有不同定义.<br>
+https://stackoverflow.com/questions/8857763/what-is-the-difference-between-casting-and-coercing
 
-情况 1 省了个 ptr, 但要求变量定义, 这再次表明: 静态类型增加程序员负担
+**masm 的变量和静态类型**
 
-ptr 啥意思? pointer? 地址确实可以看作指针, 但对指针解除引用的操作是 [], ptr 的作用对象是解除引用后的数据, 因此 ptr 是个 coercion 或 cast, 但不知道为啥取名字叫 ptr.
+假设有 `i byte ?`, masm 说变量 i 具有类型 byte, 结果是
 
-可能是为了凑点关系, masm 决定发明一个指针类型, 还使用关键字 ptr - 给 ptr 添加一个和指针有关系的用法. 这样一来 ptr 就有两种不同的用法了: 一种是 word ptr, 另一种是 ptr word... 就问你佩不佩服? **todo** 待续
+1. `mov ds:200, byte ptr 3` 可以写 `mov i, 3` 或 `mov i, byte ptr 3`
+1. `mov ds:200, word ptr 3` 只能写 `mov word ptr i, 3`, 不能写 `mov i, word ptr 3`
+1. `mov ax, ds:200` 毫无歧义, 但要写 `mov ax, word ptr i`
 
-Randall Hyde 把这个操作叫 coercion; 后来有一天我搜索网页发现这种意见: 要么叫 conversion 要么叫 cast, 就是不叫 coercion. 我真的是觉得 c++ 有很多神棍.
+所以变量 = 带长度的地址. 它的目的, 不是长度匹配时省一个 `长度 ptr`, 而是长度不匹配时产生编译错误. 这纯粹是制造困难, 但该困难顶了个迷惑性的名字, 让人捉摸不透, 不敢妄下定论: 静态类型. 显然拥护静态类型的那批人数量巨大.
 
-check this out | https://stackoverflow.com/questions/8857763/what-is-the-difference-between-casting-and-coercing
----|---
-conversion | implicitly/explicitly changing a value from one data type to another
-coercion   | implicit conversion
-cast       | explicit type conversion, may be a re-interpretation of a bit-pattern or a real conversion
+**变量名** 和 **标签名** 是 masm 功能, 保存变量的类型和语句的 **location**. 在预处理之后的编译阶段: 删除变量名和标签名周围的所有方括号; 变量名替换成 [location], 前面放代码中的 cast, 没有的话放 size ptr; 标签名替换成 location.
+
+**用 ptr 定义 masm 指针**
+
+前面看到 ptr 用于 coercion, 和指针 pointer 关系很小, 主要作用是干扰程序员的思维. 为进一步骚扰程序员, masm 决定发明一个指针类型, 仍使用关键字 ptr: 给 ptr 添加一个和指针有关系的用法. 这样一来 ptr 就有两种不同的用法了: 一种是 word ptr, 另一种是 ptr word... 就问你佩不佩服?
+
+http://www.phatcode.net/res/223/files/html/Chapter_5/CH05-1.html#HEADING1-197
+
+masm 的 ptr word 属于 typedef 语法, 有两种形式
+
+- typename typedef near ptr basetype; near 是默认值, 可以省略
+- typename typedef far ptr basetype
+
+basetype 是 byte/word/... 这些长度, 或前面 typedef 定义的 typename; **可以省略**; 仅供 cv.exe 使用, 在调试时按 basetype 显示 typename 变量指向的值.
+
+也就是说这种 typedef 要么定义一个 near pointer 要么定义一个 far pointer, 而 **masm 16 位程序 typedef 的 near ptr 就是保存 m16 的 word, far ptr 就是保存 m16:16 的 dword**. 前面 [jmp short, near, far, long](#jmp-short-near-far-long) 的示例 3 证明 dword ptr 不能得到 m16:16, far 才能. masm far ptr 的作用是 1. 用 dword 保存变量, 2. 提示 masm 生成 far jump.
+
+```
+npt1 typedef near ptr word
+npt2 typedef ptr word
+npt3 typedef ptr
+
+fpt4 typedef far ptr word
+fpt5 typedef far ptr
+
+xxx segment
+org 100h
+s:  jmp ds:p5
+
+p1 npt1 1111h
+p2 npt2 2222h
+p3 npt3 3333h
+
+p4 fpt4 4444aaaah
+p5 fpt5 5555bbbbh
+xxx ends
+end s
+
+ml -AT -Foout\ dd.msm -Feout\
+
+debug out\dd.com
+-d 100 l20
+1337:0100  FF 2E 0E 01 11 11 22 22-33 33 AA AA 44 44 BB BB   ......""33..DD..
+1337:0110  55 55 08 B8 04 00 50 0E-E8 65 0A B8 1C 27 50 FF   UU....P..e...'P.
+-r
+AX=FFFF  BX=0000  CX=0012  DX=0000  SP=FFFE  BP=0000  SI=0000  DI=0000  
+DS=1337  ES=1337  SS=1337  CS=1337  IP=0100   NV UP EI PL NZ NA PO NC 
+1337:0100 FF2E0E01      JMP	FAR [010E]                         DS:010E=BBBB
+-t
+AX=FFFF  BX=0000  CX=0012  DX=0000  SP=FFFE  BP=0000  SI=0000  DI=0000  
+DS=1337  ES=1337  SS=1337  CS=5555  IP=BBBB   NV UP EI PL NZ NA PO NC 
+5555:BBBB 0000          ADD	[BX+SI],AL                         DS:0000=CD
+-q
+```
 
 ### ret, retn, retf
 
 intel 助记符是 retn, retf; ret 是 masm 指示, masm 在 proc 里使用以省去一个字符 (f 或 n), 它查看 proc 的定义, 给 ret 加上 f 或 n. 为了能在写 ret 时省一个字母, 需要在前面写一行定义 proc 的语句. 这就是作茧自缚吗? ret 其实也能从 segment 的定义推导 near 和 far 所以也不是非常浪费字符.
 
+### length, lengthof, size, sizeof
+
+
+
+LENGTHOF variable
+
+SIZEOF variable
+
+SIZEOF type
+
+LENGTH expression
+
+SIZE expression
+
+这些都是 masm operator
+
+https://stackoverflow.com/questions/26864213/get-structure-size-within-masm
+
+todo
+
 ### the segment directive
 
 masm 有关键字 segment (段). 前面演示了 masm 要求代码必须有段. 16 位程序里 segment 对应 16 位 cpu 的段, masm 根据源代码定义的段修改源代码, 起始地址和栈写进 exe 文件头的 cs:ip, ss:sp; 32 位程序里 segment 对应可执行文件的节, 节对应内存的页; 节的一个作用是指出一段内存的读, 写, 执行属性.
 
-**todo** diff on use32, flat<br>
+diff on use32, flat
+
 https://stackoverflow.com/questions/45124341/effects-of-the-flat-operand-to-the-segment-directive
+
+todo
+
+### 显式重写段寄存器
+
+masm 要求显式重写段寄存器, `mov [200], word ptr 3` 要写为 `mov ds:[200], word ptr 3`, `ds:[200]` 可写作 `ds:200`. 毫无用处. 访问内存默认的段寄存器是 ds, 不用 ds 时必须加前缀, 本来就没有歧义. masm 要求重写是因为他[胡乱解释](#从-psp-获取程序的命令行参数) `[200]`, 只有重写才能抑制该行为.
 
 ### assume
 
@@ -1000,26 +1219,6 @@ xxx     ends
 - 做为一行的首个非空白字符时, 展开该行的文本宏和宏函数; 用于 echo, title, subtitle, .erre 等把参数一律视为文本的指示. 一律 - 包括 %, 常量表达式 - 视为文本, 就没法在它们的参数里调用宏或对表达式求值; 但又有这种需求, 于是 masm 说, 既然宏展开符号 % 放 (比如 echo) 后面没戏, 那就放前面吧; 常量表达式的话你们就在外面赋值给文本宏, 别在里面求值了.masm 居然没有选择添加或规定转义字符, 真乃一大幸事.
 
 masm 有个以 % 打头的指示, %out; 后来加了个 echo 用于取代其功能. %out 是个 4 字符的 token, % 是名字的一部分. %out 作为名字已经够搞笑了, 更搞笑的是它用 % 打头却没有 % 打头语句的作用, %out 完全等于 echo; 要展开 echo 后面的宏需要写 %echo, 或者 %%out; 或者清晰一些, % echo 和 % %out.
-
-
-## masm 编译错误
-
-### A2076 
-
-error A2076: jump destination must specify a label.
-
-A direct jump's destination must be relative to a code label. 
-
-intel 在 near jmp 后看到立即数就认为是相对偏移; masm 必须看到 label, 比如 `s: jmp s - 100h`, 不能写 `jmp 0`
-
-### LNK1190
-
-fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
-
-> http://masm32.com/board/index.php?topic=3114.0 wjr April 15, 2014, 07:06:37 AM<br>
-If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
-should be 0x0006 IMAGE_REL_I386_DIR32), then you should be able to see at least one of these in the
-IMAGE_RELOCATION records. The symbol name and RVA are also displayed which should help narrow things down.
 
 ## 16 bit dos masm 程序示例
 
@@ -1064,8 +1263,7 @@ exit:   mov     ax, 4c00h
 xxx     ends
         end     start
 
-执行下列命令后输出
-> out\dd     ddd  --x
+out\dd     ddd  --x
      ddd  --x
 
 注: 后来看到这帖子
@@ -1074,7 +1272,8 @@ masm 根据它的规则修改你的代码
 - variable name               无论方括号, 一律认为是变量的值
 - constant, const expr, imm   无论方括号, 一律认为是立即数
 - register                    不修改方括号的意义
-这个编译器会修改你的代码. 我能理解错不全在 masm, 你看它修改的大都是他自己规定的玩意儿: 变量, 常量, 常量表达式, 除了立即数. 因此要说代码被修改了你自己也有问题, 因为你用它提供的结构了, 我想很难反驳吧?
+这个编译器会修改你的代码. 我能理解错不全在 masm, 你看它修改的都是他自己规定的玩意儿: 变量, 常量,
+常量表达式. 因此要说代码被修改了你自己也有责任, 因为你用它提供的结构了, 我想很难反驳吧?
 ```
 
 上面代码为了用 int21h/ah9 打印串, 修改了 psp, 并仍无法正确打印包含 $ 的串. 下面的网页给出了 3 种办法<br>
