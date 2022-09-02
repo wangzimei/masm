@@ -1,10 +1,22 @@
 
-8086        16 位实模式 dos
-cmdln       测试 masm 命令行
-copy        抄来的东西
-iaie        intel 指令扩展
-out         生成的文件
-x64         保护模式, ring3, windows
+contents of this repository
+
+    intro.md            8086, dos, masm 6
+    macros.md           masm 6 macros
+
+compile sample codes
+
+    8086/masm611        not included in repo
+    out                 compiler outputs
+
+unsorted
+
+    8086                16 位实模式 dos
+    cmdln               测试 masm 命令行
+    copy                抄来的东西
+    iaie                intel 指令扩展
+    x64                 保护模式, ring3, windows
+
 
 ==================== 编写和执行 masm 汇编程序
 
@@ -32,7 +44,7 @@ launch dosbox, install masm 6.x
 write code in any editor, switch to dosbox, ml file
 
 debug generated executable using cv.exe
-f4 = hide window, f5 = f7 = go, f8 = trace, f9 = break point, f10 = step
+f4 = hide window, f5 = go, f6 = move focus, f7 = go to cursor, f8 = trace, f9 = break point, f10 = step
 
 redirect ml outputs to file named fff
 > fff ml -Zs dd.msm
@@ -83,18 +95,18 @@ CTRL-F10    释放鼠标捕获
 
 ==================== online tools
 
-https://defuse.ca/online-x86-assembler.htm
-
-x86, x64 汇编和反汇编, 选项少, 易用, 有的汇编结果不正确
+https://carlosrafaelgn.com.br/Asm86/
+32 bit assembly with debugging. unknown syntax, simple and fun
 
 https://godbolt.org/
-
 语言选 assembly, 编译器版本很多但种类不多, 没找到 16 位汇编
 nasm 64 位代码的编译选项 -felf64
 
 https://onlinedisassembler.com/odaweb/
-
 反汇编, 选项多
+
+https://defuse.ca/online-x86-assembler.htm
+x86, x64 汇编和反汇编, 选项少, 易用, 有的汇编结果不正确
 
 ==================== online emulator
 

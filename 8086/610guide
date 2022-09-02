@@ -1,0 +1,638 @@
+
+
+Microsoft MASM 6.1 Programmer's Guide.pdf               前面的页码指这本书
+Macro Assembler 6.1 (16-bit) - MSDN Archive Edition     后面的页码指这本书
+
+p???/p2     Introduction
+p???/p7     CHAPTER  1 Understanding Global Concepts
+p???/p32    CHAPTER  2 Organizing Segments
+p???/p47    CHAPTER  3 Using Addresses and Pointers
+p???/p70    Chapter  4 Defining and Using Simple Data Types
+p???/p86    Chapter  5 Defining and Using Complex Data Types
+p???/p108   Chapter  6 Using Floating-Point and Binary Coded Decimal Numbers
+p???/p130   Chapter  7 Controlling Program Flow
+p???/p166   Chapter  8 Sharing Data and Procedures Among Modules and Libraries
+p???/p176   Chapter  9 Using Macros
+p???/p198   Chapter 10 Writing a Dynamic-Link Library For Windows
+p???/p209   Chapter 11 Writing Memory-Resident Software
+p???/p237   Chapter 12 Mixed-Language Programming
+p???/p258   Chapter 13 Writing 32-Bit Applications
+p???/p261   Appendix A Differences Between MASM 6.1 and 5.1
+p???/p313   Appendix D MASM Reserved Words
+p???/p334   Appendix E Default Segment Names
+p???/p336   Glossary
+
+
+文章没有解释的概念 - 这篇炼金术士风格的文章有很多似是而非的概念
+
+module 就是源文件
+
+- 证据: The END statement ... It must be at the end of every module.
+
+Assembler Directives
+
+- https://docs.oracle.com/cd/E26502_01/html/E28388/eoiyg.html<br>
+Directives are commands that are part of the assembler syntax but are not related to the x86 processor instruction set.
+
+- https://en.wikipedia.org/wiki/Assembly_language#Language_design
+Assembly directives, also called pseudo-opcodes, pseudo-operations or pseudo-ops, are commands given to an assembler
+"directing it to perform operations other than assembling instructions.". Directives affect how the assembler operates
+and "may affect the object code, the symbol table, the listing file, and the values of internal assembler parameters."
+Sometimes the term pseudo-opcode is reserved for directives that generate object code, such as those that generate data.
+
+
+## Introduction
+
+
+讲历史. 基本没啥用的章节. 以后忽略这种无用内容
+
+看来这种废话写作风格 80 年代就有了. msdn 到处都是这些废话文章, 那么多文章也不大可能是同一个人写的吧?
+如果是多个人写的, 这些人是怎么形成了这种默契?
+
+### new since 5.1
+
+BYTE instead of DB: typedef
+
+syntax for defining and using structures and records has been enhanced: union
+
+complete CodeView information for all types
+
+.REPEAT .UNTIL .UNTILCXZ; .WHILE .ENDW; .IF .ELSE .ELSEIF
+
+extended PROC syntax; PROTO, INVOKE
+
+optimizes jumps by automatically determining the most efficient coding for a jump and then generating the appropriate code
+
+externdef
+
+macro
+- default arguments, required arguments, vararg
+- while
+- macro function which returns text macros, predefined text macros
+
+.STARTUP and .EXIT generate appropriate startup and exit code
+
+flat memory model in windows nt
+
+H2INC.EXE
+
+assembly routines to create tsr
+
+other minor new features
+
+
+### new since 6.0
+
+ml.exe
+
+compatible with 5.1
+
+
+### new since not sure 6.0 or 6.1
+
+access all windows api using libw.lib
+
+Program listings now show instruction timings
+
+
+### new since 6.1
+
+ML now runs in 32-bit protected mode under MS-DOS, for assembling large source
+
+All utilities have been updated for version 6.1, doc enhance
+
+debugging information for CodeView 4.0+
+
+more compatible than 6.0 with 5.1
+
+
+## 1 Understanding Global Concepts
+
+```
+
+; ml -Zs 8086/610guide/ch01.msm
+
+; p???/p14  ch1/Language Components of MASM/Identifiers
+; 247- chars
+; first char @_$?A-Za-z, others plus 0-9
+; masm plus %., option dotname
+;
+; line          至多 512 字符, 513+ error A2039: line too long
+; identifier    至多 247 字符, 248+ error A2043: identifier too long
+;
+; p30 /p??? ch1/Language Components of MASM/Predefined Symbols
+;
+; p31 /p??? 基数后缀
+; binary        y, b (if the default radix is not hexadecimal)
+; octal         o, q
+; decimal       t, d (if the default radix is not hexadecimal)
+; hexadecimal   h
+;
+; .RADIX 指定没有后缀的数字字面量使用的基数, 范围 [2, 16], 基数默认 10
+; - 有没有重置 radix 为默认值的语句?
+
+.radix 7
+
+num1 = 6
+num2 = 10
+num3 = 10d
+
+s1r07 textequ % num1
+s2r07 textequ % num2
+s3r07 textequ % num3
+
+.radix 10
+
+s1r10 textequ % num1
+s2r10 textequ % num2
+s3r10 textequ % num3
+
+%echo s1r07 s2r07 s3r07 ; 6 10 13
+%echo s1r10 s2r10 s3r10 ; 6 7 10
+
+; p32 /p??? ch1/Language Components of MASM/Integer Constants and Constant Expressions/Symbolic Integer Constants
+;
+; 这 1 节放在第 1 章毫无意义, 读者根本不知道宏, 这里就开始用 =, equ 了, 用的时候还讲不明白
+;
+; <symbol> equ <expression>     - symbol 不能重新赋值
+; <symbol>  =  <expression>     - symbol 能够重新赋值
+
+; in MASM 6.1, Size of Constants = 32
+; OPTION EXPR16 or OPTION M510 set it to 16
+; 要么是 EXPR16 要么是 EXPR32, 可以重复多次, 为的是可以在多个包含文件中写 option exprxxx
+; USE32 or FLAT 时不能写 option expr16, error A2197:expression size must be 32 bits
+
+option expr32
+option expr32
+option expr32
+
+; p35 /p??? ch1/Language Components of MASM/Data Types
+; masm 6.0 之前区分类型和初始化器, 比如 byte 是类型, db 是相应的初始化器. masm 6.1+ 不区分两者, 类型可以当初始化器
+; 1. masm 6.0 啥行为?
+; 2. 6.1+ 反过来如何, 即初始化器可以当类型吗?
+;
+; masm 没有数组和串类型
+; 类型可具有诸如 langtype, distance (near, far) 的特性
+; 自定义类型 struct, union, record
+; 新类型 <typename> typedef <qualifiedtype>. 可以用 <qualifiedtype> 定义过程原型
+
+; p45 /p??? ch1/The Assembly Process/Using the OPTION Directive
+; option 覆盖相应的命令行选项
+
+; p48 /p??? ch1/The Assembly Process/Conditional Directives
+
+end
+
+
+
+; done: *尝试* 用 echo 在汇编时打印数字
+; 目前是调用 c 库函数 printf, 32 位代码
+;
+; ml -Foout/ 8086/610guide/ch01.msm -Feout/
+
+includelib msvcrt.lib
+includelib legacy_stdio_definitions.lib
+
+.model flat, c
+
+printf proto
+
+.data
+fmt byte '%d %d %d', 10, 0
+
+.code
+main proc
+
+; printf("%d %d %d\n", 6r7, 10r7, 10); // 6 7 10
+;  6 (radix 7) = 6 (radix 10)
+; 10 (radix 7) = 7 (radix 10)
+
+.radix 7
+    mov     eax, 10d
+    push    eax
+    mov     eax, 10
+    push    eax
+    mov     eax, 6
+    push    eax
+
+    push    offset fmt
+    call    printf
+
+.radix 10
+    ; printf 是 cdecl, 调用者清理栈上的参数, 3 个 eax 和 1 个 offset 共 16 字节
+    add     esp, 16
+    ret
+main endp
+end
+
+
+```
+
+
+
+## 2 Organizing Segments
+
+
+directive     指示
+instruction   指令
+
+p53 /p??? Using Simplified Segment Directives
+
+简化段指示必须放 .model 后面
+
+.MODEL; .CODE, .CONST, .DATA, .DATA?, .FARDATA, .FARDATA?, .STACK, .STARTUP, .EXIT
+
+.code, .data 结束前面的段, 开始新段; .stack 打开并关闭栈段, 不结束前面的段
+
+下面是使用了简化段指示的 main module 的结构
+- default processor: 8086
+- end 结束前面的段, 标记源代码结束, 每个模块都必须用它结束
+
+.MODEL small, c ; .model 要放在其它简化段指示前
+.STACK          ; 使用默认的 1k 栈 - 这个默认指的是 .stack 的默认参数
+.DATA           ; 开始数据段
+                ; 这里放数据声明 (原文 data declarations, 其实是定义)
+.CODE
+.STARTUP        ; 生成启动代码
+                ; 这里放指令
+.EXIT           ; 生成退出代码
+END
+
+这 16 位代码我在 masm 14 上也编译了, 遇到下面错误
+error A2006:undefined symbol : DGROUP
+如果修改 .model 为 flat
+error A2199:.STARTUP does not work with 32-bit segments
+error A2198:.EXIT does not work with 32-bit segments
+
+
+.MODEL memorymodel [[, modeloptions ]]
+
+memorymodel @model
+- tiny produces com file, send /TINY to linker, file size < 64k
+    near code, near static data, can not override; can allocate far data at run
+- small, compact, medium, large
+- huge = large
+- flat must be placed after .386+
+    near address, near pointer, similar to tiny but is 32 bit
+    cs = ds = es = ss = seg flat
+
+modeloptions
+- language @interface
+    sets calling and naming conventions for procedures and public symbols
+    proc, invoke, public, extern use naming convention
+    no language type in .model, option, extern, proc, invoke, proto causes error
+    - basic = fortran = pascal
+    - c, syscall have same calling convention, different naming convention
+    - stdcall used by windows api
+- stack distance @stack
+    - nearstack default. stack and data in 1 physical segment (dgroup)
+        .startup sets ss = ds; if not use .startup you must set it
+    - farstack used by: tsr, dll
+        stack does not grouped with dgroup, thus ss != ds
+
+.model
+- defines dgroup - 存疑
+
+例子
+.model small
+.model large, c, farstack
+.model medium, pascal
+
+指定处理器和协处理器
+处理器指示除了启用不同的指令集外还影响语言特点, 比如 .286 让 invoke 利用 80286 及更高的处理器才有的操作
+(看到这里受不了骂了几句, 删了. 究竟啥操作也不说, 那干嘛提这茬?)
+
+处理器
+.8086 (默认), .186, .286, .386, .486 (由于 486 内置协处理器所以此指示同时启用协处理器指令)
+
+处理器 - 特权指令, 比如 .286p = .286 + 286 特权指令
+.286p, .386p, .486p
+
+协处理器
+.8087 (默认), .287, .387, .no87 (关闭协处理器指令)
+
+栈段
+.STACK 2048 ; Use 2K stack, default is 1024
+
+数据段 - assume cs:error
+
+.DATA   near, into dgroup, 64k in dos, 512m in winnt flat
+.DATA?  near, into dgroup unless flat, microsoft place uninitialized var, c startup init them to 0
+.CONST  near, into dgroup unless flat, microsoft place consts (string, ...) and floats
+
+这些就不知所云了, 查了 msdn 文档才明白
+@data       name of the default data group. flat: flat; other: dgroup
+@datasize   TINY, SMALL, MEDIUM, FLAT: 0; COMPACT, LARGE: 1; HUGE: 2
+@WordSize   当前段 word 的尺寸. 16 位段: 2; 32 位段: 4
+@CurSeg     return name of the current segment - 这个应该能理解
+
+The compact, large, and huge memory models use far data addresses by default
+.FARDATA    far, into FAR_DATA
+.FARDATA?   far, into FAR_BSS
+
+代码段
+@CodeSize   TINY, SMALL, COMPACT, FLAT (near): 0; MEDIUM, LARGE, HUGE (far): 1
+
+.model                      default code seg    default code seg name
+MEDIUM, LARGE, HUGE         far                 FILENAME_TEXT
+TINY, SMALL, COMPACT, FLAT  near                _TEXT, thus concatenated by linker
+
+.code name
+- override default code seg name
+- serveral code seg in 1 far file
+
+
+
+p???/p41 Using Full Segment Definitions
+
+when write dos program without .MODEL and .STARTUP, you must
+- initialize registers
+- use the END directive to indicate the starting address
+
+windows program
+- no requirement
+
+
+
+
+
+
+
+
+## 3 Using Addresses and Pointers
+
+
+p74 ch3
+
+.model small
+.nearstack
+.code / .data / ...
+产生等价于下列语句的 assume
+ASSUME cs:_TEXT, ds:DGROUP, ss:DGROUP
+
+
+p???/p49
+Notice the ORG statement in this example. ... It places the first instruction
+at offset 100h in the code segment to create space for a 256-byte (100h) data
+area called the Program Segment Prefix (PSP). The operating system takes care
+of initializing the PSP, so you need only make sure the area exists.
+
+我看到前 100h 字节全是 0 的 com 文件时搜索了 masm org full of zeros 得到下面网页, 帮助不大
+https://stackoverflow.com/questions/15199938/org-0c700h-gives-weird-output
+
+```
+; 前 100h 全是 0 的 com, ml -AT -Foout\ dd.msm -Feout\
+; 这是个常见错误: 没有用 end 指出起始地址. 连接器输出下面警告并把起始地址置为 0;
+; LINK : warning L4055: start address not equal to 0x100 for /TINY
+; 然后看到 org 100h, 就从 0 起填 100h 个 0; 然后把 db 1 生成的语句放入第 100h
+;
+; 备用, 和这里不相关: LINK : warning L4040: stack size ignored for /TINY
+xxx segment
+org 100h
+db 1
+xxx ends
+end
+
+; ml -AT -Foout\ dd.msm -Feout\
+xxx segment
+s:
+db 'It places the first instruction',
+'at offset 100h in the code'
+org 10h
+db '=========='
+xxx ends
+end s
+
+% xxd out/dd.obj
+00000000: 8008 0006 6464 2e6d 736d 2f96 0600 0003  ....dd.msm/.....
+00000010: 5858 5859 9807 0060 3900 0201 01c4 a03d  XXXY...`9......=
+00000020: 0001 0000 4974 2070 6c61 6365 7320 7468  ....It places th
+00000030: 6520 6669 7273 7420 696e 7374 7275 6374  e first instruct
+00000040: 696f 6e61 7420 6f66 6673 6574 2031 3030  ionat offset 100
+00000050: 6820 696e 2074 6865 2063 6f64 659a a00e  h in the code...
+00000060: 0001 1000 3d3d 3d3d 3d3d 3d3d 3d3d df8a  ....==========..
+00000070: 0600 c150 0100 005e                      ...P...^
+% xxd out/dd.com
+00000000: 4974 2070 6c61 6365 7320 7468 6520 6669  It places the fi
+00000010: 3d3d 3d3d 3d3d 3d3d 3d3d 6374 696f 6e61  ==========ctiona
+00000020: 7420 6f66 6673 6574 2031 3030 6820 696e  t offset 100h in
+00000030: 2074 6865 2063 6f64 65                    the code
+```
+
+
+
+short   jmp     rel8
+near    jmp     rel16, r/m16
+far     jmp     ptr16:16, m16:16
+
+p???/p50
+这里对 Near Code 和 Far Code 的描述非常含糊, 委婉表达了远代码通过 call seg:offset 调用, 用 retf 返回;
+但既没有写出 call 和 retf, 也没有提到关键因素 - masm 关键字 proc.
+
+近代码是段内代码, 远代码是段外代码. 既然是调用, 就只考虑代码中可以调用的部分, 即代码标签;
+masm 又从这部分里圈出一部分 - 那些用 proc 定义的代码; 因此文章这部分说的近代码远代码指近过程远过程
+
+近代码是用 fn proc near 定义的过程, 远代码是用 ff proc far 定义的过程; proc 是 masm 发明的, 不是 x86 指令
+- fn proc near, 由于 ret = retn, masm 不做改动
+- ff proc far , masm 把其中的 ret 改为 retf
+masm 看到 call f 时查看 f 的类型, 如果是 proc 则一定是 near 或 far
+- near, 把 call 改为近调用
+- far , 段内, 把 call 改为 push cs + 近调用; 段外, 把 call 改为远调用
+- 近调用远调用参考上面的那 3 个 jmp; near 和 short 都是近
+
+显而易见, 近调用一个远过程 (而不 push cs) 或远调用一个近过程, 过程返回时肯定导致栈不是原样
+在 masm 中如果一律用 proc 定义过程, 则根据上面叙述的处理方式, 不会产生调用类型和过程类型不匹配
+即使不用 proc 用代码标签, masm 也能发现明显不正确的代码, 比如 call 远标签, 从而产生编译错误
+
+在试图理解本部分内容时我搜索到一个网页, 正是我要问的问题
+https://stackoverflow.com/questions/20637718/should-i-avoid-using-retf
+他的疑问是: 定义过程时 (他用的是代码标签, 没有用 proc) 要么用 retf 要么用 retn; 而调用时在段外用远调用, 段内用近调用,
+肯定有一个调用会出错吧?
+现在我可以回答这个问题: 肯定有一个调用会出错. retf 的过程只能远调用; retn 的过程只能近调用, 进而 retn 的过程只能定义在本段
+
+根据 masm 把调用段内的远过程写为 push cs/call near, 即近调用段内远过程, 可推知如果远调用了段内近过程, 调用后应该 pop
+思考题: 近调用段外近过程? 近调用段外远过程? 远调用段外近过程?
+
+假设远标签 f, 我用 push cs/call f 行不行? 不行. call f 导致编译错误, 原因是,
+远调用涉及 4 个地址, caller seg:caller next 是返回地址; callee seg:calee offset 是 f 的地址.
+push cs/call f 中已知 caller seg, caller next, calee offset 而 callee seg 未知, 从而没法跳到 f
+
+"等一下!" 你突然发问, "编译器都知道 f 是远标签从而产生编译错误了, 你却说他不知道 callee seg?"
+"呃... call 标签 f 是 masm 语法, masm 确实知道 f 的段地址. 前面的已知 3 未知 1 实在说的是只给个数字偏移的情况, 如果给个
+标签那它的地址总是已知的, 因此我前面的表达有错误; 至于为啥 masm 不像修改其他代码一样给 f 加上段地址, 我就不知道了"
+
+
+p???/p60    Saving Operands on the Stack
+
+"When a value is pushed onto the stack, the assembler decreases the SP (Stack Pointer) register by 2."
+- 错误. 应该是 processor decreases the SP
+
+Note The 8086 and 8088 processors differ from later Intel processors in how they push and pop the
+SP register. If you give the statement push sp with the 8086 or 8088, the word pushed is the word in
+SP after the push operation.
+
+
+p???/p63    Defining Pointer Types with TYPEDEF
+
+
+
+
+
+## 5 Defining and Using Complex Data Types
+
+
+
+p???/p86  Declaring and Referencing Arrays
+
+定义变量和定义数组语法一样, 给一个值是变量, 给多个值是数组: 变量名 值的长度 值, 值, ...
+
+- 值 = 数字, ?, 数字 dup (值, 值, ...)
+    - 数字 = 数字, 常量表达式, 字符串
+    - ? = 不初始化
+    - n dup () = 把括号里的列表重复 n 次
+
+数组每个元素长度一样; 元素长度不一样的可能也叫数组, 但无法用这个语法定义
+
+masm 把变量名叫做 data label, 不是 code label, 基本就是为了配合 lengthof, sizeof
+data label 虽然也标记一个偏移, 但取这个偏移需要用操作符 offset
+用 code label 的话 abc word ? 可以像下面那样写. masm 要求 abc: 和 word ? 之间有换行
+abc:
+word ?
+
+db, byte; dw, word; dd, dword; dt, tbyte 基本通用
+
+```
+; ml -Zs dd.msm
+xxx segment
+
+; 变量
+var1 word ?
+
+; 数组
+arr1 word 1, 2, 3, 4, 5
+arr2 word 7 dup (1, 2, 3 dup (1, 2, 3, 2 dup (4)), 2 dup (?), 5, 6, ?, ? , 9)
+arr3 byte 1, ?, "ab", lengthof var1, 3 dup ("you mean on master branch??", lengthof arr1, 8), ?, "abcddddd"
+
+lenarr2 textequ %(lengthof arr2)
+%echo lenarr2 ; 168
+
+arr4 word "abc"
+; error A2071: initializer magnitude too large for specified size
+; 初始化 word 数组时 masm 不知道该用几个字符对应 1 个 word
+; 但 masm 可能是认为初始化 byte 数组时一个字符显然对应一个 byte, 所以允许用串初始化 byte 数组
+arr5 byte "abc"
+
+; masm 里 arr2[17] 代表 arr2 + 17, c 里也是如此
+; 不一样的地方在于 masm 里是 17 个字节, c 里是 17 个元素长度
+
+; 数组初始化列表可以放在下一行, 此时上一行必须以逗号结尾
+arr7    byte    1, 2, 3,
+                4, 5
+
+; 数组后可以放匿名内存, lengthof 正确的认为匿名内存不属于数组
+arr8    byte    1, 2, 3
+        byte    4, 5
+
+lenarr7 textequ %(lengthof arr7)
+lenarr8 textequ %(lengthof arr8)
+%echo lengthof arr7 = lenarr7, lengthof arr8 = lenarr8 ; ... 5, ... 3
+
+xxx ends
+end
+```
+
+
+单引号和双引号用于表示字符串字面量, 这字面量里唯一的转义字符是和外面的引号相同的两个引号, 表示一个引号
+即, 2 个单引号在单引号括起来的字符串里表示 1 个单引号, 在双引号括起来的字符串里表示 2 个单引号
+这一点都不好, 干嘛要转义呢? 如果用了这个转义, 字符串的内容就取决于引号的种类了, 简直垃圾
+
+```
+; ml -Zs dd.msm
+; 输出 different length
+
+xxx segment
+str1 db 'a''bc'
+str2 db "a''bc"
+xxx ends
+
+if lengthof str1 eq lengthof str2
+    echo same length
+else
+    echo different length
+endif
+
+end
+```
+
+
+p???/p90  Processing Strings
+rep movs, xlat
+
+string = 串, character string = 字符串
+串指令操作串, 串的元素可以是这 4 种: byte, word, dword, qword
+
+intel 设计的操作串的指令写法上有 2 个特点
+1. 内存到内存; 尽管实际还是要用寄存器或缓存中转, 也算是进步
+2. 指令前加 rep 表示反复执行, rep op dst, src; 操作数长度还是原来那几种, 原地踏步
+
+rep; repe = repz; repne = repnz
+movs, stos, cmps, lods, scas, ins, outs
+std -> df = 1; cld -> df = 0
+
+rep movsd 的大致过程是
+1. [ rep ]    如果 cx = 0, 下一条指令
+2. [ rep ]    service any pending interrupts
+3. [movsd]    把 ds:si 的一个 dword 拷贝至 es:di
+4. [movsd]    (si, di) += (df ? -1 : 1) * (4 = bytes of dword)
+-. [  -  ]    scas, cmps 根据对比结果设置 zf
+5. [ rep ]    --cx, 不修改标志寄存器
+6. [ rep ]    goto 1 (*)
+* also checks zero flag for REPZ/REPNZ
+
+rep 专用于串, 后跟若干串指令之一, 隐含使用 cx; movs 隐含使用 direction flag (df)
+repz, repnz 是干嘛的? cmps, scas 执行时设置 zf 表示匹配, 但这些指令退不出 rep
+repz 除了 rep 的退出条件 (cx = 0) 还查看 zf, 如果 zf = 0 也退出; repnz 在 cx = 0 或 zf = 1 时退出
+
+movsb = movs byte ptr, movsd = movs dword ptr, ... 区别是
+movs 需要写参数 dst 和 src, 可以重写 src 的段寄存器
+movsb, movsw, movsd, movsq 不要参数, 隐含使用 ds:si 和 es:di
+
+cmps 把俩字符相减. 字符一样的话结果等于 0, zf = 1; 否则 zf = 0
+
+为什么是 src = ds:si, dst = es:di; 而不是 src = ss:si, dst = ds:di? 下面是我猜的
+- ss 用来保存栈基址了, 想用的话得在 rep 之前保存栈基址, 之后恢复, 麻烦
+- movs dst, src 有 2 个内存操作数, 1 读 1 写; intel 想让读的那个用 ds, 他说: d 指 data 而不是 dst
+- intel 认为能让 src 用 si, dst 用 di, 已经是 "很用心了的在做了"
+说真的, dst, src 能对上 ds, ss 确实是巧合, ds 的 d 和 ss 的 s 分别代表 data, stack
+不过 di 的 d 和 si 的 s 确实分别代表 destination 和 source. i 代表啥? i 代表 index
+
+
+p???/p94, Searching Arrays
+
+这里说 scas 比较 es:di 和 cx; 错误, 应该是比较 es:di 和 al/ax/eax; 给出的代码没错
+
+
+
+
+
+
+p???/p95    Structures and Unions
+p???/p96    Declaring Structure and Union Types
+
+name {STRUCT = STRUC | UNION} [[alignment]] [[,NONUNIQUE ]]
+fielddeclarations
+name ENDS
+
+
+
+p???/p105   Declaring Record Types
+就是 c 的位域, masm 里在全局定义, c 在结构里定义
+
+
+
+
+
+## 9 Using Macros
+
+/macros.md
+

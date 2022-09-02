@@ -3,8 +3,6 @@ xxx     segment
 
         ;org     100h
 start:
-
-
         mov     ax, [bp][di]
 
 
