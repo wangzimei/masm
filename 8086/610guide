@@ -41,8 +41,8 @@ and "may affect the object code, the symbol table, the listing file, and the val
 Sometimes the term pseudo-opcode is reserved for directives that generate object code, such as those that generate data.
 
 
-## Introduction
 
+## Introduction
 
 讲历史. 基本没啥用的章节. 以后忽略这种无用内容
 
@@ -80,20 +80,17 @@ assembly routines to create tsr
 
 other minor new features
 
-
 ### new since 6.0
 
 ml.exe
 
 compatible with 5.1
 
-
 ### new since not sure 6.0 or 6.1
 
 access all windows api using libw.lib
 
 Program listings now show instruction timings
-
 
 ### new since 6.1
 
@@ -108,34 +105,35 @@ more compatible than 6.0 with 5.1
 
 ## 1 Understanding Global Concepts
 
+p???/p14  ch1/Language Components of MASM/Identifiers
+
+247- chars
+first char @_$?A-Za-z, others plus 0-9
+masm plus %., option dotname
+
+line        at most 512 chars, 513+ error A2039: line too long
+identifier  at most 247 chars, 248+ error A2043: identifier too long
+
+p30 /p??? ch1/Language Components of MASM/Predefined Symbols
+
+p31 /p??? 基数后缀
+
+binary        y, b (if the default radix is not hexadecimal)
+octal         o, q
+decimal       t, d (if the default radix is not hexadecimal)
+hexadecimal   h
+
+.RADIX 指定没有后缀的数字字面量使用的基数, 范围 [2, 16], 基数默认 10
+有没有重置 radix 为默认值的语句?
+
 ```
-
-; ml -Zs 8086/610guide/ch01.msm
-
-; p???/p14  ch1/Language Components of MASM/Identifiers
-; 247- chars
-; first char @_$?A-Za-z, others plus 0-9
-; masm plus %., option dotname
-;
-; line          至多 512 字符, 513+ error A2039: line too long
-; identifier    至多 247 字符, 248+ error A2043: identifier too long
-;
-; p30 /p??? ch1/Language Components of MASM/Predefined Symbols
-;
-; p31 /p??? 基数后缀
-; binary        y, b (if the default radix is not hexadecimal)
-; octal         o, q
-; decimal       t, d (if the default radix is not hexadecimal)
-; hexadecimal   h
-;
-; .RADIX 指定没有后缀的数字字面量使用的基数, 范围 [2, 16], 基数默认 10
-; - 有没有重置 radix 为默认值的语句?
+; ml -Zs dd.msm
 
 .radix 7
 
-num1 = 6
-num2 = 10
-num3 = 10d
+num1 = 6    ;  6 in radix 7,  6 in radix 10
+num2 = 10   ; 10 in radix 7,  7 in radix 10
+num3 = 10d  ; 13 in radix 7, 10 in radix 10
 
 s1r07 textequ % num1
 s2r07 textequ % num2
@@ -149,45 +147,46 @@ s3r10 textequ % num3
 
 %echo s1r07 s2r07 s3r07 ; 6 10 13
 %echo s1r10 s2r10 s3r10 ; 6 7 10
+```
 
-; p32 /p??? ch1/Language Components of MASM/Integer Constants and Constant Expressions/Symbolic Integer Constants
-;
-; 这 1 节放在第 1 章毫无意义, 读者根本不知道宏, 这里就开始用 =, equ 了, 用的时候还讲不明白
-;
-; <symbol> equ <expression>     - symbol 不能重新赋值
-; <symbol>  =  <expression>     - symbol 能够重新赋值
+p32 /p??? ch1/Language Components of MASM/Integer Constants and Constant Expressions/Symbolic Integer Constants
 
-; in MASM 6.1, Size of Constants = 32
-; OPTION EXPR16 or OPTION M510 set it to 16
-; 要么是 EXPR16 要么是 EXPR32, 可以重复多次, 为的是可以在多个包含文件中写 option exprxxx
-; USE32 or FLAT 时不能写 option expr16, error A2197:expression size must be 32 bits
+这 1 节放在第 1 章毫无意义, 读者根本不知道宏, 这里就开始用 =, equ 了, 用的时候还讲不明白
+
+<symbol> equ <expression>   - symbol 不能重新赋值
+<symbol>  =  <expression>   - symbol 能够重新赋值
+
+in MASM 6.1, Size of Constants = 32
+OPTION EXPR16 or OPTION M510 set it to 16
+要么是 EXPR16 要么是 EXPR32, 可以重复多次, 为的是可以在多个包含文件中写 option exprxxx
+USE32 or FLAT 时不能写 option expr16, error A2197:expression size must be 32 bits
 
 option expr32
 option expr32
 option expr32
 
-; p35 /p??? ch1/Language Components of MASM/Data Types
-; masm 6.0 之前区分类型和初始化器, 比如 byte 是类型, db 是相应的初始化器. masm 6.1+ 不区分两者, 类型可以当初始化器
-; 1. masm 6.0 啥行为?
-; 2. 6.1+ 反过来如何, 即初始化器可以当类型吗?
-;
-; masm 没有数组和串类型
-; 类型可具有诸如 langtype, distance (near, far) 的特性
-; 自定义类型 struct, union, record
-; 新类型 <typename> typedef <qualifiedtype>. 可以用 <qualifiedtype> 定义过程原型
 
-; p45 /p??? ch1/The Assembly Process/Using the OPTION Directive
-; option 覆盖相应的命令行选项
+p35 /p??? ch1/Language Components of MASM/Data Types
 
-; p48 /p??? ch1/The Assembly Process/Conditional Directives
+masm 6.0 之前区分类型和初始化器, 比如 byte 是类型, db 是相应的初始化器. masm 6.1+ 不区分两者, 类型可以当初始化器
 
-end
+疑问
+1. masm 6.0 之前和 6.1+, 那 6.0 啥行为?
+2. 6.1+ 反过来如何, 即初始化器可以当类型吗? 不能. mov dw ptr ds:1, 1 得到 error A2008: syntax error : dw
 
+masm 没有数组和串类型
+类型可具有诸如 langtype, distance (near, far) 的特性
+自定义类型 struct, union, record
+新类型 <typename> typedef <qualifiedtype>. 可以用 <qualifiedtype> 定义过程原型
 
+p45 /p??? ch1/The Assembly Process/Using the OPTION Directive
 
-; done: *尝试* 用 echo 在汇编时打印数字
-; 目前是调用 c 库函数 printf, 32 位代码
-;
+option 覆盖相应的命令行选项
+
+p48 /p??? ch1/The Assembly Process/Conditional Directives
+
+```
+; 调用 c 库函数 printf 打印数字, 32 位代码
 ; ml -Foout/ 8086/610guide/ch01.msm -Feout/
 
 includelib msvcrt.lib
@@ -224,25 +223,12 @@ main proc
     ret
 main endp
 end
-
-
 ```
-
 
 
 ## 2 Organizing Segments
 
-
-directive     指示
-instruction   指令
-
 p53 /p??? Using Simplified Segment Directives
-
-简化段指示必须放 .model 后面
-
-.MODEL; .CODE, .CONST, .DATA, .DATA?, .FARDATA, .FARDATA?, .STACK, .STARTUP, .EXIT
-
-.code, .data 结束前面的段, 开始新段; .stack 打开并关闭栈段, 不结束前面的段
 
 下面是使用了简化段指示的 main module 的结构
 - default processor: 8086
@@ -265,33 +251,6 @@ error A2199:.STARTUP does not work with 32-bit segments
 error A2198:.EXIT does not work with 32-bit segments
 
 
-.MODEL memorymodel [[, modeloptions ]]
-
-memorymodel @model
-- tiny produces com file, send /TINY to linker, file size < 64k
-    near code, near static data, can not override; can allocate far data at run
-- small, compact, medium, large
-- huge = large
-- flat must be placed after .386+
-    near address, near pointer, similar to tiny but is 32 bit
-    cs = ds = es = ss = seg flat
-
-modeloptions
-- language @interface
-    sets calling and naming conventions for procedures and public symbols
-    proc, invoke, public, extern use naming convention
-    no language type in .model, option, extern, proc, invoke, proto causes error
-    - basic = fortran = pascal
-    - c, syscall have same calling convention, different naming convention
-    - stdcall used by windows api
-- stack distance @stack
-    - nearstack default. stack and data in 1 physical segment (dgroup)
-        .startup sets ss = ds; if not use .startup you must set it
-    - farstack used by: tsr, dll
-        stack does not grouped with dgroup, thus ss != ds
-
-.model
-- defines dgroup - 存疑
 
 例子
 .model small
@@ -354,13 +313,7 @@ windows program
 
 
 
-
-
-
-
-
 ## 3 Using Addresses and Pointers
-
 
 p74 ch3
 
@@ -372,6 +325,7 @@ ASSUME cs:_TEXT, ds:DGROUP, ss:DGROUP
 
 
 p???/p49
+
 Notice the ORG statement in this example. ... It places the first instruction
 at offset 100h in the code segment to create space for a 256-byte (100h) data
 area called the Program Segment Prefix (PSP). The operating system takes care
@@ -387,6 +341,7 @@ https://stackoverflow.com/questions/15199938/org-0c700h-gives-weird-output
 ; 然后看到 org 100h, 就从 0 起填 100h 个 0; 然后把 db 1 生成的语句放入第 100h
 ;
 ; 备用, 和这里不相关: LINK : warning L4040: stack size ignored for /TINY
+
 xxx segment
 org 100h
 db 1
@@ -420,47 +375,10 @@ end s
 ```
 
 
-
-short   jmp     rel8
-near    jmp     rel16, r/m16
-far     jmp     ptr16:16, m16:16
-
 p???/p50
+
 这里对 Near Code 和 Far Code 的描述非常含糊, 委婉表达了远代码通过 call seg:offset 调用, 用 retf 返回;
 但既没有写出 call 和 retf, 也没有提到关键因素 - masm 关键字 proc.
-
-近代码是段内代码, 远代码是段外代码. 既然是调用, 就只考虑代码中可以调用的部分, 即代码标签;
-masm 又从这部分里圈出一部分 - 那些用 proc 定义的代码; 因此文章这部分说的近代码远代码指近过程远过程
-
-近代码是用 fn proc near 定义的过程, 远代码是用 ff proc far 定义的过程; proc 是 masm 发明的, 不是 x86 指令
-- fn proc near, 由于 ret = retn, masm 不做改动
-- ff proc far , masm 把其中的 ret 改为 retf
-masm 看到 call f 时查看 f 的类型, 如果是 proc 则一定是 near 或 far
-- near, 把 call 改为近调用
-- far , 段内, 把 call 改为 push cs + 近调用; 段外, 把 call 改为远调用
-- 近调用远调用参考上面的那 3 个 jmp; near 和 short 都是近
-
-显而易见, 近调用一个远过程 (而不 push cs) 或远调用一个近过程, 过程返回时肯定导致栈不是原样
-在 masm 中如果一律用 proc 定义过程, 则根据上面叙述的处理方式, 不会产生调用类型和过程类型不匹配
-即使不用 proc 用代码标签, masm 也能发现明显不正确的代码, 比如 call 远标签, 从而产生编译错误
-
-在试图理解本部分内容时我搜索到一个网页, 正是我要问的问题
-https://stackoverflow.com/questions/20637718/should-i-avoid-using-retf
-他的疑问是: 定义过程时 (他用的是代码标签, 没有用 proc) 要么用 retf 要么用 retn; 而调用时在段外用远调用, 段内用近调用,
-肯定有一个调用会出错吧?
-现在我可以回答这个问题: 肯定有一个调用会出错. retf 的过程只能远调用; retn 的过程只能近调用, 进而 retn 的过程只能定义在本段
-
-根据 masm 把调用段内的远过程写为 push cs/call near, 即近调用段内远过程, 可推知如果远调用了段内近过程, 调用后应该 pop
-思考题: 近调用段外近过程? 近调用段外远过程? 远调用段外近过程?
-
-假设远标签 f, 我用 push cs/call f 行不行? 不行. call f 导致编译错误, 原因是,
-远调用涉及 4 个地址, caller seg:caller next 是返回地址; callee seg:calee offset 是 f 的地址.
-push cs/call f 中已知 caller seg, caller next, calee offset 而 callee seg 未知, 从而没法跳到 f
-
-"等一下!" 你突然发问, "编译器都知道 f 是远标签从而产生编译错误了, 你却说他不知道 callee seg?"
-"呃... call 标签 f 是 masm 语法, masm 确实知道 f 的段地址. 前面的已知 3 未知 1 实在说的是只给个数字偏移的情况, 如果给个
-标签那它的地址总是已知的, 因此我前面的表达有错误; 至于为啥 masm 不像修改其他代码一样给 f 加上段地址, 我就不知道了"
-
 
 p???/p60    Saving Operands on the Stack
 
@@ -523,7 +441,7 @@ arr4 word "abc"
 arr5 byte "abc"
 
 ; masm 里 arr2[17] 代表 arr2 + 17, c 里也是如此
-; 不一样的地方在于 masm 里是 17 个字节, c 里是 17 个元素长度
+; 不一样的地方在 masm 里是 17 个字节, c 里是 17 个元素长度
 
 ; 数组初始化列表可以放在下一行, 此时上一行必须以逗号结尾
 arr7    byte    1, 2, 3,
@@ -566,6 +484,7 @@ end
 
 
 p???/p90  Processing Strings
+
 rep movs, xlat
 
 string = 串, character string = 字符串
@@ -626,13 +545,6 @@ name ENDS
 
 
 p???/p105   Declaring Record Types
+
 就是 c 的位域, masm 里在全局定义, c 在结构里定义
-
-
-
-
-
-## 9 Using Macros
-
-/macros.md
 

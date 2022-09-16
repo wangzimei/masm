@@ -12,7 +12,6 @@ compile sample codes
 unsorted
 
     8086                16 位实模式 dos
-    cmdln               测试 masm 命令行
     copy                抄来的东西
     iaie                intel 指令扩展
     x64                 保护模式, ring3, windows
@@ -42,9 +41,7 @@ download masm 6.x, e.g. https://sourceforge.net/projects/masm611/
 install dosbox, configure it, see relevant section below
 launch dosbox, install masm 6.x
 write code in any editor, switch to dosbox, ml file
-
 debug generated executable using cv.exe
-f4 = hide window, f5 = go, f6 = move focus, f7 = go to cursor, f8 = trace, f9 = break point, f10 = step
 
 redirect ml outputs to file named fff
 > fff ml -Zs dd.msm
@@ -129,7 +126,7 @@ https://www.pcjs.org/
     安装, save hd, 刷新页面, 选择保存的 img 文件, 点 mount. 错误: unrecognized disk format
 - 机器的 caps 既不能检测也不能控制键盘的 caps lock, 反被其控制. 有时 caps 显示的状态和实际状态正相反
 = 机器屏幕是 canvas. 图像精确; 无法复制命令行输出
-- 不共享剪切板, 不共享文件系统
+- 不共享剪切板 (win95 能共享), 不共享文件系统
 
 
 https://copy.sh/v86/?profile=msdos
