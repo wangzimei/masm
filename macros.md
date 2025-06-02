@@ -1,363 +1,302 @@
 
 
-- 合集: 热身运动, 💀 HBD & hold your breath
-    - [拼接字符串](#拼接字符串)
-    - [数组](#数组)
 
 
-## 常见宏代码
 
-- 确保已经安装了 masm, 在命令行输入 ml 回车以确认
-- 在命令行 cd 到本项目目录, 比如 c:\code\masm. dosbox 无需此步骤
-- 在此目录新建文件 dd.msm
-- 把下面的代码粘贴到 dd.msm 里, 在命令行用 ml -Zs dd.msm 运行
+<br><br><br><br><br><br><br><br><br><br><br><br><br>
 
-*readme 里讲了 dosbox 的使用方法. 选项 -Zs 说只做语法检查*
+# <center> a major rewrite is on its way</center>
 
-**用关键词 echo, 在编译时输出文本**
-
-```
-echo hello world
-end
-```
-
-**用关键词 echo, 在编译时输出使用宏定义的变量**
-
-```
-int1 = 3
-str1 textequ <some text>
-str2 textequ % int1
-
-% echo int1 = str2, str-1 = str1
-end
-```
-
-**循环, 函数调用, 在编译时输出计算后的值**
-
-```
-fibonacci_cyc macro n: =<5>
-    local n1, n2, n3, i
-
-    i = 2
-    n1 = 0
-    n2 = 1
-
-    ;; can be `repeat n - 2` thus eliminates `i`
-    while i lt n
-        n3 = n1 + n2
-        n1 = n2
-        n2 = n3
-        i = i + 1
-    endm
-
-    exitm % n1 + n2
-endm
-
-% echo fibonacci_cyc(47)
-; it can accurately calculate up to 47 (2971215073)
-end
-```
-
-**分支, 递归函数**
-
-```
-fibonacci_rec macro n: =<5>
-    if n lt 1
-        exitm <0>
-    elseif n eq 1
-        exitm <1>
-    else
-        exitm % fibonacci_rec(% n - 1) + fibonacci_rec(% n - 2)
-    endif
-endm
-
-% echo fibonacci_rec(20)
-end
-```
-
-**在编译时输出字符串长度**
-
-从命令行用 -D 传入字符串变量 s, 比如 `ml -D s="how would you count this?" -Zs dd.msm`
-
-```
-ifdef s
-    len1 sizestr s
-    len2 textequ % len1
-
-    % echo s
-    % echo has a length of len2
-else
-    echo variable s is not defined
-endif
-end
-```
-
-\* *试试 s="the name is s"*
-
-**输出 masm 程序**
-
-用 `ml dd.msm` 生成 dd.exe, 然后 `dd` 运行它.
-
-*当 masm 版本大于 6.11 时下面代码生成 windows 程序; 否则生成 dos 程序*
-
-```
-if @version le 611
-
-start   textequ <abc>
-
-xxx     segment stack
-start:
-        mov     ax, cs
-        mov     ds, ax
-        mov     dx, offset s
-        mov     ah, 9
-        int     21h
-
-        mov     ax, 4c00h
-        int     21h
-
-s       byte    "16 bit program compiled with masm 611-$", 16 dup (?)
-xxx     ends
-
-else
-
-start   textequ <_main>
-
-_TEXT   segment flat
-start:
-
-        includelib kernel32.lib
-GetStdHandle    proto near32 stdcall :dword
-WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
-
-        push    -11 ; -11 = STD_OUTPUT_HANDLE
-        call    GetStdHandle ; sets eax on return
-
-; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite,
-; LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved. push backwards
-        push    0
-        push    offset dwd
-        push    sizeof s
-        push    offset s
-        push    eax
-        call    WriteConsoleA
-
-        ret
-_TEXT   ends
-
-data    segment flat
-s       byte    "32 bit program compiled with masm > 611"
-dwd     dword   ?
-data    ends
-
-endif
-        end     start
-```
+<br><br><br><br><br><br><br><br><br><br><br><br><br>
 
 
 
 
 
 
+## 宏, 文本替换, 展开, 预处理
 
-## 目录
-
-- [常见宏代码](#常见宏代码)
-- 目录
-- [预处理](#预处理)
-    - [常量表达式](#常量表达式)
-    - [变量](#变量)
-    - [常见操作符](#常见操作符)
-    - [分支](#分支)
-    - [重复块](#重复块)
-    - [输入输出](#输入输出)
-        - [包含](#包含)
-    - [展开](#展开)
-    - [文本宏](#文本宏)
-    - [宏过程](#宏过程)
-    - [宏函数](#宏函数)
-    - [参数](#参数)
-    - [两种查找文本宏和宏函数的模式](#两种查找文本宏和宏函数的模式)
-        - [模式 1](#模式-1)
-        - [模式 2](#模式-2)
-        - [示例: 宏名](#示例-宏名)
-        - [撮合](#撮合)
-        - [一些性质](#一些性质)
-    - [用于处理字符串的指示和预定义函数](#用于处理字符串的指示和预定义函数)
-    - [opattr, @cpu, pushcontext, popcontext](#opattr-cpu-pushcontext-popcontext)
-    - [常见编译错误](#常见编译错误)
-    - [调试?](#调试)
-- [masm 和 c 的对比](#masm-和-c-的对比)
-- [观察与思考](#观察与思考)
-    - [退化](#退化)
-    - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
-    - [前序遍历, 以及 masm 令人着急的处理能力](#前序遍历-以及-masm-令人着急的处理能力)
-    - [模式 2 不撮合](#模式-2-不撮合)
-- [代码演示](#代码演示)
-    - [返回函数名](#返回函数名)
-    - [展开指定的次数](#展开指定的次数)
-    - [展开本来不展开的文本宏](#展开本来不展开的文本宏)
-    - [Douglas Crockford: Memoization](#douglas-crockford-memoization)
-- [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
-    - [闪现](#闪现)
-    - [name TEXTEQU macroId?](#name-textequ-macroId)
-    - [masm 忽略句子中自己看不懂的部分](#masm-忽略句子中自己看不懂的部分)
-    - [masm 忽略错误](#masm-忽略错误)
-    - [fatal error DX1020](#fatal-error-dx1020)
-    - [vararg](#vararg)
-    - [宏函数作参数时的 bug](#宏函数作参数时的-bug)
-    - [预定义的字符串函数参数可以是文本宏?](#预定义的字符串函数参数可以是文本宏)
-    - [hoisting](#hoisting)
-- [早期代码](#早期代码)
-    - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
-    - [宏函数的各种失败展开](#宏函数的各种失败展开)
-- [致谢](#致谢)
-
-
-
-
-
-
-
-
-## 预处理
-
-masm 定义的几百个关键字中有一类叫宏指令, 处理宏指令及宏指令定义的宏叫**预处理**. 预处理是文本处理. masm 的预处理做 5 件**基本**事情:
-<br>`pp1, 求值`. 计算整数表达式
-<br>`pp2, 转换`. 把整数转为字符串
-<br>`pp3, 定义`. 文本 a = 文本 b. 文本 a 只能是一个 token
-<br>`pp4, 重复`. 把一些文本重复若干次
-<br>`pp5, 调用`. 如果文本 a 由 pp3 定义, 则将其换成文本 b
-<br>这些基本事情可以组合后出现在一行里面.
-
-masm 从上往下读取行, 从左往右处理行里的文本, 行尾的 `\` 视为续行. 编译原理/词法分析/tokenization 把字符序列转换为 token 序列,
-masm 的预处理发生在词法分析阶段, 拿到 token 后查看:
-- 如果是宏指令 (pp1, pp2, pp3, pp4), 执行, 否则
-- 如果是宏指令定义的名字 (pp5), 进行文本替换, 否则
-- 继续词法分析
-
-**不要被名字骗了, masm 的预处理不是预先处理; 它和处理纠缠在一起, 预处理得到的 token 直接交给词法分析.**
-<br>* *或者我对预处理存在不切实际的期望? 预处理说的本来就是对 token 进行预处理, 而不是对源文件进行预处理?*
+masm 宏指文本替换; 由于经常是把名字 (较短) 替换成多条语句 (较长) 所以也叫展开. 这事儿在编译之前做, 编译之前还做些其他事儿, 合起来叫预处理. 名词宏和预处理可以混用.
 
 `ml -EP dd.msm`<br>
--EP 在屏幕上打印预处理结果, 不生成 obj
+-EP 往 stdout 输出预处理结果, 不生成 obj
+
+`ml -Zs dd.msm`<br>
+-Zs 预处理, 语法检查, 不生成 obj
 
 `ml -Flout\ -Sa -Zs dd.msm`<br>
 -Fl 生成清单文件, -Sa 最详细清单, -Sf 清单加入第 1 遍的结果. 难道还有第 2 遍? m510 的 .err2 可能与之有关
 
-### 常量表达式
+### 转义, 变量, 宏
 
-masm 说的 constexpr 包括整数字面量和整数表达式字面量, 即整数和加减乘除符号的组合. 常量表达式的值总是整数, 长度由 `option expr16/expr32` 决定.
+转义序列用字符集里的字符序列代表字符集外的字符, 为了区分字符转义前和转义后的意思, 规定了一些字符作转义起始标记. 转义前和转义后是两种状态, 可以看出, 只要规定多种转义起始字符就可以拥有多种转义后的状态. 另外, 如果考虑 "转义结束标记" 就会想到引号和括号. 转义和括号是同义词, 引号是括号的一种.
+
+在编程语言里所有字符都是转义字符, 所有词都不代表字面意思, 字符序列的字面值反倒要用引号括住以转义出来. 这种设定下变量名用起来就很方便, 变量名代表一个东西而不代表组成变量名的字符的字面值, 使用变量名的时候虽然每次都转义但从来不明显的把转义标记写出来.
+
+masm 编程语言的宏分为关键字和自定义的名字 (a.k.a. 宏名, 变量名). 宏的作用是生成文本, 但宏和文本在写法上没有任何区别, 一个词究竟是宏关键字, 宏名还是普通文本需要查表才能确定. xxx 的类型取决于前面是否定义了 xxx; 一个词是否替换取决于其所在的位置. 这些问题固然不归 masm 独有, 但实际使用的体验是 masm 集中了所有问题, 基本都没有解决; 没有解决的, 多数又增加了新的问题; 少部分解决的, 解决方式也极其琐碎.
+
+
+
+todo: 读懂这个 https://github.com/qwordAtGitHub/mreal-macros
+
+### 数据类型
+
+610guide, p16: In addition to constants, expressions can contain labels, types, registers, and their attributes.
+
+(expression? token group?) | 类型 | 解释
+-|-|-
+10, 1b, 1y, 7o, 7q, 10d, 10t, 16h | integer literal | default radix is not hexadecimal 时可以用 1b, 10d
+"abc", 'abc'                      | integer literal | 整数 ascii, "abc" = 979899
+x operator y, operator x          | integer constexpr | x, y 是 token, option expr16/32 决定结果的长度
+\<any chars>                    | text item | cv help/index/assembler/e/exitm/textitem
+% constexpr                     | text item | text item = 文本项, 不能包含 \n
+text-macro, macro-function()    | text item | 文本宏和宏函数有自己的类型, 不是文本项, 它俩的替换结果是文本项
+
+q | a
+-|-
+text item 和 statement, token 是啥关系? | masm 没有解释
+有没有 text 的概念, 有的话是啥? | masm 没有解释, 感觉就是源代码文本, 既可以是字符也可以是 token, token 组, 语句组
+text 和 text item 有区别吗? | 估计 text item 指值是 text 的表达式. masm 没有 text expression 的说法
+为什么要区分 text item 和 statement, token? | 一个文本宏的名字, 放在在尖括号里是 text, 不替换; 否则就替换
+
+a.k.a.s in masm documents and help
+- number = integer
+- constant expression = constexpr = expression
+- string = text
+- string equate = text equate = text macro
+
+名字 | -Fl 输出的类型 | defined by | 解释
+-|-|-|-
+tag = constexpr         | symbol, number    | equate | 按当前 radix 对常量表达式求值, 得到整数
+tag = "abc"             | symbol, number    | equate | 值是 0x616263 under option expr32
+tag equ constexpr       | symbol, number    | equ directive     | const, 但 -Fl 没有列出该属性
+tag equ non-constexpr   | symbol, text      | equ directive     | 参数无法当作 constexpr 求值时视作文本
+tag textequ text-item   | symbol, text      | text equate       | 文本宏, 替换为不含 \n 的文本
+tag:                    | symbol, l near    | code label        | 可以用在 ifdef 里
+tag size init           | symbol, size      | data label        | 可以用在 ifdef 里
+... exitm arg           | macro, func       | macro function    | 宏函数, 替换为不含 \n 的文本
+... exitm               | macro, proc       | macro procedure   | 宏过程, 替换为包含 \n 的文本
+tag segment             | segment and group
 
 ```
-; 常量表达式是整数和整数表达式
-; ml -Zs dd.msm
+; text 替换成值, number 不替换
 
-a1 = 3
-a2 = 5 * 2 + 1
+                                ; ml -EP dd.msm
+e1 = 4                          ; (same)
+t1 textequ % e1 * 3             ; (same)
 
-; error A2008: syntax error : ,
-;a3 = 18 - 2, 2 + 7
+e2 = t1 + 3                     ; e2 = 12 + 3
+t2 textequ % e2 shl (t1 / 10)   ; t2 textequ % e2 shl (12 / 10)
 
-; error A2050: real or BCD number not allowed
-;a4 = 1.4
+e3 = t2 mod 17 + e2             ; e3 = 30 mod 17 + e2
+t3 textequ % e3                 ; (same)
 
-; error A2009: syntax error in expression
-;a5 = 1.44
+e1 e2 e3                        ; error A2008. e1 e2 e3
+t1 t2 t3                        ; error A2008. 12 30 28
 
-; echo 不能输出整数; 只能先把整数保存为文本宏, 然后用 % echo 输出
-s1 textequ % a1
-s2 textequ % a2
-% echo s1 s2 ; 3 11
-
+; 当然在 masm 里就没有什么确定的东西, 比如
+t4 textequ t1, % t1, t1         ; t4 textequ t1, % 12, t1
 end
 ```
 
-\* *从这个例子可以看出 echo 无法输出分号之后的内容, 分号之后是 masm 注释*
-
-参考: [%](#percent-sign), [=](#equal-sign), [文本宏和 textequ](#文本宏)
-
-### 变量
-
-预处理阶段的变量是汇编阶段的常量
-
-类型 | 例子 | 解释
----|---|---
-integer || 有 2 种形式
-|| 123 | 整数字面量
-|| <span id=equal-sign></span>tag = constexpr | 整数变量. 按当前 radix 对表达式求值, 得到整数
-string || 字符串, 或者叫文本. 有 4 种形式
-|| "" '' | masm 说这是字符串. 在汇编里是整数列表, 整数是字符的 ascii 值.<br>比如 "abc" = "a", "b", "c" = 97, 98, 99
-|| <> | 字符串字面量, 用尖括号包起来
-|| args as `% arg` of... | catstr/exitm/macro-function/macro-procedure/textequ
-|| args as `f(arg)`, `f(<arg>)` | [宏函数](#宏函数) f 把前述参数视为字符串
-code label |tag: | 标签是常量
-data label | tag byte/word/... init | 标签是常量
-text macro || 字符串变量 ([文本宏](#文本宏))
-macro procedure || [宏过程](#宏过程)
-macro function || 宏函数
-
-equ 是 masm 5 就有的关键字, 试了试可以当 textequ 和 = 使, 具体啥区别我没有找到答案. 能确定的是, 如果 equ 定义了整数则该整数不能再次赋值
-
-### 常见操作符
-
-char | ascii | 解释
----|---|---
-!   | 33 | 在尖括号里视下一字符为字面值, 主要用来转义尖括号; 在其他地方无特殊意义
-%   | 37 | <span id=percent-sign></span>行首时[展开](#展开)该行的[文本宏](#文本宏)和[宏函数](#宏函数); [文本项](#text-item)里视后面的字符串为表达式, 求值后转为字符串
-&   | 38 | 文档里叫 substitution, 在[模式 2](#模式-2) 中用于标记宏
-;   | 59 | 注释
-;;  | 59 | 注释, 仅出现在宏定义里, 不随宏展开至源码
-<>  | 60 | 包围串字面量
-\\  | 92 | 行尾时续行, **反斜杠不是操作符**
-
-操作符的完整列表 <https://docs.microsoft.com/en-us/cpp/assembler/masm/operators-reference?view=vs-2019>
-
-这 3 个地方经常使用尖括号:
-
-- [参数](#参数)
-- [文本项](#text-item)里用尖括号表示字符串
-- 莫名其妙的地方: `.err`, `option nokeyword: <xxx>`
-
-### 分支
-
-*pp4, 重复. if true = 重复 1 次, if false = 重复 0 次.*
-
 ```
-if    , ife    , ifb    , ifnb    , ifdef    , ifndef    , ifidn    , ifidni    , ifdif    , ifdifi
-elseif, elseife, elseifb, elseifnb, elseifdef, elseifndef, elseifidn, elseifidni, elseifdif, elseifdifi
-else
-endif
+; 替换时只查找已知的宏
+
+  te1 textequ <te2>
+% echo te1
+
+  te2 textequ <i am "te2">
+% echo te1
+end
+
+ml -Zs dd.msm
+
+te2
+i am "te2"
 ```
 
-这些分支语句的条件有的是整数有的是字符串, 整数可以用**操作符**连接形成常量表达式
+```
+; =, textequ, equ. ml -Zs dd.msm
 
-**隐式转换** if 视条件里的串为常量表达式
+te1 textequ  1      ; error A2051: text item required
+te1 textequ <1>     ; type = text, value = 1, value != <1>
+te1 textequ %  1
+te1 textequ % <1>   ; error A2009: syntax error in expression. te1 = 0
 
-operator | 解释
----|---
-+, -, *, /, mod | 中缀操作符接受左右两个操作数; 加减乘除, 取余数
-[]  | expr1 \[expr2] = expr1 + expr2
-and, or, xor, shl, shr | 位逻辑和按位左右移
-not | not expr, 按位取反
-eq, ne, ge, gt, le, lt | equal, not equal, greater or equal, greater than, less or equal, less than. 返回 -1 代表 true, 0 代表 false
+te1 textequ   "3 * 4"   ; error A2051: text item required
+te1 textequ % "3 * 4"   ; error A2084: constant value too large
 
-keyword | 解释
----|---
-if  expr | 如果 expr 不等于 0
-ife expr | 如果 expr 等于 0
-ifb  text-item | 如果 [text-item](#text-item) 空
-ifnb text-item | 如果 text-item 不空
-ifdef  tag | 如果定义了变量 tag
-ifndef tag | 如果没有定义变量 tag
-ifidn  text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值相同
-ifidni text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值相同, 忽略大小写
-ifdif  text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值不同
-ifdifi text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值不同, 忽略大小写
+te2 textequ te1     ; type = text, value = 0. 不替换 te1, te2 是 te1 的别名
+
+int1 = te1
+int1 =  1
+int1 = <1>          ; error A2009: syntax error in expression
+int1 =  3 * 4
+int1 = "3 * 4"      ; error A2084: constant value too large
+int1 = "3 *4"       ; value = 0x33202A34
+
+int1 = 18, 2 + 7    ; error A2008: syntax error : ,
+int1 = 1.4          ; error A2050: real or BCD number not allowed
+int1 = 1.44         ; error A2009: syntax error in expression
+
+int1 equ 4          ; error A2005: symbol redefinition : int1
+
+equ1 equ % 3 * 4    ; type = text, value = % 3 * 4. equ 右边的 % 无特殊意义
+equ1 equ   te1      ; type = text, value = te1. equ 不从右边找宏名, 除非 % 打头
+equ1 equ  <te1>     ; type = text, value = te1
+equ1 equ <<te1>>    ; type = text, value = <te1>
+equ1 equ 4          ; type = text, value = 4
+
+equ2 equ 1          ; type = number (int const), value = 1
+equ2 equ 1
+equ2 equ 2          ; error A2005: symbol redefinition : equ2
+
+equ3 equ % 3 * 4
+    te3  textequ % equ3     ; error A2009: syntax error in expression
+%   te3  textequ   equ3     ; error A2008: syntax error : integer. 两边都展开了
+%   te4  textequ   equ3     ; te4 = (text) 12. te4 是新定义的名字无法展开, 且 textequ 视右边的 % 为求值
+%%% te5  textequ  <equ3>    ; te5 = (text) % 3 * 4, 尖括号内的 % 无效
+end
+
+-EP 表明
+A2005, A2009, A2050, A2084 有时用原来的值设置变量, 不改变变量的值, 有时把变量改为 0
+A2009, A2050 导致 -Fl 不在 Symbols 里列出变量, 但变量仍存在
+A2051 不设置变量, 不改变变量的值
+```
+
+### 输入输出
+
+输入
+
+- 代码里定义的名字
+- `include filename` 用文件 filename 的内容替换 include 语句, filename 包含 `\;<>'"` 时要用尖括号包起来
+- 通过命令行 -D 定义的文本宏
+
+输出
+
+- 替换后的文本. 仅在内存中, 不修改源文件; 可以替换为随意的文本, 但往往让它符合 masm 语法
+-   - echo = %out 把参数输出到 stdout, 行首是 % 比如 % echo, % %out 时替换一次文本宏和宏函数
+    - .erre, .errnz 把第 2 个参数视为 text item, 是文本宏或宏函数时忽略第 1 个 token 之后的内容
+
+```
+; ml -Zs dd.msm
+
+abc equ <value is this>
+
+   echo abc ; abc
+ % echo abc ; value is this
+%% echo abc ; value is this
+
+.erre   0, abc ; error A2053: forced error : value equal to 0 : 0: value is this
+.errnz  1, abc ; error A2054: forced error : value not equal to 0 : 1: value is this
+
+; error A2053: forced error : value equal to 0 : 0: value is this
+.erre   0, abc following chars are ignored
+
+; % 只替换文本宏和宏函数, A2006 肯定是 .erre 替换 value 时报告的
+; error A2006: undefined symbol : value
+; % .erre  0, abc
+; error A2006: undefined symbol : value
+; % .errnz 1, abc
+end
+```
+
+## 关键字
+
+### 标点, 符号, 操作符
+
+operator | ascii | https://docs.microsoft.com/en-us/cpp/assembler/masm/operators-reference
+-|-|-
+!   | 33 | 在尖括号里视下一字符为字面值, 在其他地方无特殊意义. 主要用来转义尖括号
+%   | 37 | 行首时替换该行的文本宏和宏函数; 文本项里按当前 radix 对常量表达式求值后转为文本项
+&   | 38 | substitution, 用于标记引号里的文本宏和宏函数
++, -, *, /, mod | 43, 45, 42, 47 | 中缀操作符接受左右两个操作数; 加减乘除, 取余数
+;   | 59 | 注释. 宏定义里的 ;; 不随宏替换至源码
+<>  | 60, 62 | 文本项, 常用在参数里比如 `.err`, `option nokeyword: <xxx>`
+[]  | 91, 93 | expr1[expr2] = expr1 + expr2
+and, or, xor, shl, shr |-| 位逻辑和按位左右移
+not |-| not expr, 按位取反
+eq, ne, ge, gt, le, lt |-| equal, not equal, greater or equal, greater than, less or equal, less than. 返回 -1 代表 true, 0 代表 false
+
+显然 masm operator 参与的 token group 不等于 expression, 不一定有值
+
+punctuation | ascii | msdn 不把这些叫 operator
+-|-|-
+()  | 40, 41 | 宏函数调用
+=   | 61 | 定义整数变量, 简称为变量. 可以反复赋值
+\   | 92 | 行尾时续行
+
+```
+; % statement, '&text-macro&'
+
+                                ; type  value
+    te1 textequ <abc>           ; text  abc
+    te2 textequ  te1            ; text  abc
+    te3 textequ <te1>           ; text  te1
+%   te4 textequ <te1>           ; text  abc
+%   echo 1 te1, te2, te3, te4
+
+    te1 textequ <new>           ; text  new
+%   echo 2 te1, te2, te3, te4
+
+%   echo 3 <&te3> <&&te3&&> <&&&te3&&>
+%   echo 4 '&te3' '&&te3&&' '&&&te3&&'
+%%  echo 5 "&te3" "&&te3&&" "&&&te3&&"
+%%% echo 6 '&te3' '&&te3&&' '&&&te3&&'
+end
+
+ml -Zs dd.msm
+
+1 abc, abc, abc, abc
+2 new, abc, new, abc
+3 <new> <&new&> <&&new&>
+4 'te1' '&te1&' '&&te1&'
+5 "te1" "new" "&new"
+6 'te1' 'new' '&new'
+```
+
+### 文本宏
+
+`name equ expr` 在定义时确定类型, 之后类型不变; typeof expr == number 则类型是 number, 不能再次赋值; 否则是 text<br>
+`name textequ text-item, text-item...`
+
+610guide p???/p190 String Directives and Predefined Functions
+
+- 指示的 return 有点不准确, 因为这 4 个指示取代了 textequ, =; catstr 和 textequ 是同义词
+- 指示是关键字, 不区分大小写; 宏函数是名字, 区分大小写时 (`option casemap`, `-C[p|u|x]`) 必须匹配大小写
+- instr 的第一个参数是可选参数, 若要不提供此参数, 指示是不写, 宏函数是空逗号
+- string 下标从 1 开始
+- 和其它宏函数一样, 这 4 个预定义宏函数不替换文本宏参数
+
+directive | macro function | return | usage | echo
+---|---|---|---|---
+catstr ||       string | `string catstr <ab>, % 34`             | ab34
+|| @catstr  |   string | `% echo @catstr(<ab>, % 34, <???>)`    | ab34???
+instr ||        number | `number instr 3, <abcdabc>, <abc>`     | 5
+|| @instr   |   string | `% echo @instr(, <abcdabc>, <abc>)`    | 01
+sizestr ||      number | `number sizestr <abcdefg>`             | 7
+|| @sizestr |   string | `% echo @sizestr(<abcdefg>)`           | 07
+substr ||       string | `string substr <abcdefg>, 3, 2`        | cd
+|| @substr  |   string | `% echo @substr(<abcdefg>, 3)`         | cdefg
+
+### 条件编译
+
+条件编译 | 解释
+-|-
+if* elseif* else endif  | 是否编译块里的内容
+if/elseif constexpr     | 如果 constexpr 不等于 0
+ife/elseife constexpr   | 如果 constexpr 等于 0
+ifb/elseifb text-item   | 如果 text-item 空
+ifnb/elseifnb text-item | 如果 text-item 不空
+ifdef/elseifdef tag     | 如果定义了变量 tag
+ifndef/elseifndef tag   | 如果没有定义变量 tag
+ifidn/elseifidn text-item-1, text-item-2   | 如果 text-item-1 和 text-item-2 的值相同
+ifidni/elseifidni text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值相同, 忽略大小写
+ifdif/elseifdif text-item-1, text-item-2   | 如果 text-item-1 和 text-item-2 的值不同
+ifdifi/elseifdifi text-item-1, text-item-2 | 如果 text-item-1 和 text-item-2 的值不同, 忽略大小写
 
 ```
 ; 分支和操作符
-; ml -Zs dd.msm
 
 int1 = 4
 int2 = 0
@@ -386,168 +325,306 @@ ifidni str2, str3
 elseif str2 eq str3
     echo `ifidni` thinks str2 and str3 are different, but `if` thinks they equal
 endif
-
 end
 
-输出
+ml -Zs dd.msm
+
 `if` casts condition to integer then eval, str2 > int1
 content of str1 differs from str2
 `ifidni` thinks str2 and str3 are different, but `if` thinks they equal
 ```
 
-参考: [textequ](#文本宏)
-
-### 重复块
-
-*pp4, 重复.*
-
-**没有循环和跳转语句**. for, while 等关键字用于定义重复块, 把块内的语句就地展开指定次;
-递归调用[宏函数](#宏函数)是把宏函数[展开](#展开)若干次.
-
 > 610guide p???/p187<br>
 repeat(rept, masm 5.1-)/while/for(irp, masm 5.1-)/forc(irpc, masm 5.1-), exitm, endm
 
-**repeat**
+### 重复块
+
+重复块把块内的语句就地重复指定次
+
+- for 的第 2 个参数需要尖括号. 把第 2 个参数看成是以逗号分隔的参数列表, 遍历此列表<br>
+forc 的第 2 个参数不需要尖括号. 遍历第 2 个参数的每个字符; 没有尖括号时使用第一个空格前的串, 忽略之后的串<br>
+for 和 forc 尖括号里的规则就跟屎一样
+    - 发生 2 次转义, 要让 for 的单个参数是 `a, b` 需要写 `<a!!, b>`, `a!, b` 要写 `<a!!!!!!, b>`
+    - 吃掉 `%`; `\` 是参数最后一个非空字符时吃掉
+    - 要求单引号, 双引号匹配; 后引号和后尖括号都可以在分号后面, 即注释里
+    ```
+    ; for/forc i, <text>
+    ;     statements
+    ; endm
+    ;
+    ; for i: req , <text>     i 是必填参数, 不能是空串否则报错
+    ; for i: =<c>, <text>     i 是默认参数, 如果是空串则 i = c
+
+    for i, <abcd!, 80 + 3>
+        echo i
+    endm
+
+    forc i, 12,4a 786
+        echo i
+    endm
+    end
+
+    ml -EP dd.msm
+
+        echo abcd
+        echo 80 + 3
+
+        echo 1
+        echo 2
+        echo ,
+        echo 4
+        echo a
+    end
+    ```
+- repeat, 同样的语句重复指定次
+    ```
+    ; repeat constexpr
+    ;     statements
+    ; endm
+
+    factorial2cnt = 6
+    factorial2amt = 1
+
+    repeat factorial2cnt
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+    endm
+
+    factorial2str textequ % factorial2amt
+    % echo factorial2 factorial2str
+
+    end
+
+    ml -EP dd.msm
+
+    factorial2cnt = 6
+    factorial2amt = 1
+
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+        factorial2amt = factorial2amt * factorial2cnt
+        factorial2cnt = factorial2cnt - 1
+
+    factorial2str textequ % factorial2amt
+    echo factorial2 720
+
+    end
+    ```
+- while, 同样的语句重复若干次, 每次重复前都查看 expression, 不为 0 时才重复, 否则退出; 用 exitm 也能退出
+    ```
+    ; while expression
+    ;     statements
+    ; endm
+    ;
+    ; 610guide p???/p188 的示例, 这本书的示例一般都依赖汇编指令
+    ; > out\fff ml -EP dd.msm
+
+    xxx segment
+    cubes   LABEL   BYTE            ;; Name the data generated
+    root    = 1                     ;; Initialize root
+    cube    = root * root * root    ;; Calculate first cube
+    WHILE   cube LE 32767           ;; Repeat until result too large
+        WORD    cube                ;; Allocate cube
+        root    = root + 1          ;; Calculate next root and cube
+        cube    = root * root * root
+    ENDM
+    xxx ends
+    end
+    ```
+
+### 宏过程, 宏函数
+
+宏 | 解释
+-|-
+macro
+
+### 杂项关键字
+
+杂项 | 解释
+-|-
+title, subtitle, page, page +   | used on assembly listings
+
+## 替换或展开的时机
+
+展开啥 |-
+-|-
+关键字 | if*, repeat, while, for, forc. 这些东西自己占一行, 要么展开要么编译错误
+调用 | `文本宏`; `宏过程, arg, ...`; `宏函数(arg, ...)`. 宏过程如果不是一行的首个非空白则不视为调用
+-| 没有能展开的字面量
+
+文本宏和宏函数可以出现在一行里的好几种位置. 如果一行不以 % 打头则
+- 不替换下列位置的文本宏和宏函数
+    - 引号, 尖括号里
+    - 分号后面, 即注释
+    - 宏过程, echo, equ 的右边, name, title, for, forc, ... 的参数
+- 不替换下列位置的文本宏
+    - textequ 的左右两边
+
+在剩余位置展开宏关键字, 文本宏, 宏函数; 如果得到文本宏或宏函数, 继续展开, 直到没有宏或者达到规定的展开次数
+
+> cv help/index/assembler/m/macro directive<br>
+macro procedures and macro functions can be nested up to 40 levels; text macro may be nested up to 20 levels
+
+bug1: 此链最后一个调用必须返回文本宏否则报 A2039, 给人感觉调用结果没有结束符; 撮合无论成功与否 -EP 都能看到一堆乱码.
+模式 2 撮合, 拼接都正常, -EP 也没有乱码. 我感觉模式 2 只管展开, 让下一遍去发现拼接结果, 但不知道是否立即撮合.
+为什么怀疑模式 2 的立即撮合呢? 因为如果立即做, -EP 又不出乱码, 说明模式 1 和 2 各自有执行函数的代码, 显然不简练.
 
 ```
-repeat constexpr
-    statements
-endm
-```
-```
-; repeat 示例 - 阶乘. ml -Zs dd.msm
-
-factorial2cnt = 6
-factorial2amt = 1
-
-repeat factorial2cnt
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-endm
-
-factorial2str textequ % factorial2amt
-% echo factorial2 factorial2str
-
-end
-```
-
-`ml -EP dd.msm` 显示如下[展开](#展开)结果
-
-```
-factorial2cnt = 6
-factorial2amt = 1
-
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-    factorial2amt = factorial2amt * factorial2cnt
-    factorial2cnt = factorial2cnt - 1
-
-factorial2str textequ % factorial2amt
- echo factorial2 720
-
-end
-```
-
-**while**
-
-```
-while expression
-    statements
-endm
-```
-
-while 展开若干次, 每次展开前都查看 expression, 不为 0 时才展开, 否则退出; 用 exitm 也能退出重复块.
-
-```
-; while 示例. ml -EP dd.msm
-; 610guide p???/p188 的示例, 这本书的示例一般都依赖汇编指令
-
-cubes   LABEL   BYTE            ;; Name the data generated
-root    = 1                     ;; Initialize root
-cube    = root * root * root    ;; Calculate first cube
-WHILE   cube LE 32767           ;; Repeat until result too large
-    WORD    cube                ;; Allocate cube
-    root    = root + 1          ;; Calculate next root and cube
-    cube    = root * root * root
-ENDM
-
-end
-```
-
-**for, forc**
-
-```
-for i, <text>
-    statements
-endm
-
-forc i, <text>
-    statements
-endm
-
-for i: req , <text>     必填参数, i 不能是空串否则报错
-for i: =<c>, <text>     默认参数, i 如果是空串则 i = c
-```
-
-keyword | 第 2 个参数的尖括号 | 解释
----|---|---
-for  | 需要 | 把第 2 个参数看成是以逗号分隔的参数列表, 遍历此列表
-forc | 不需要 | 遍历第 2 个参数的每个字符; 没有尖括号时使用第一个空格前的串, 忽略之后的串
-
-```
-; for, forc 示例. ml -Zs dd.msm
-
-for i, <abcd, 80 + 3>
-    echo i
-endm
-
-forc i, 12,4a 786
-    echo i
-endm
-
-end
-
-输出
-abcd
-80 + 3
-1
-2
-,
-4
-a
-```
-
-有必要看一下预处理的结果是啥样. `ml -EP dd.msm` 显示:
-
-```
-    echo abcd
-    echo 80 + 3
-
-    echo 1
-    echo 2
-    echo ,
-    echo 4
-    echo a
-
-end
-```
-
-可以看到参数 i 直接替换成了实际的值
-
-```
-; todo: toupper
-; ml -D s="a E" -EP dd.msm
+; nesting level 不能大于 20. ml -EP dd.msm
 ;
-; 难点: 怎么把一个小写字符的大写形式放入文本宏? 我不想查表. 话说回来, 宏里面怎么查表?
-; 等价问题: x = "a" 让 x 保存字符 a 的 ascii 值; 现在有 ascii 值, 怎么得到字符?
+; error A2123: text macro nesting level too deep, 多 deep 算 too deep? 用下面代码试了试
+; 展开出了 21 个 1$. 所以 A2123 的 too deep 指的应该是 > 20
+; 这个 > 20 真熟悉, 我记得 windows api 的 winproc 也检测递归, 数量好像也是 20, 那还是我上 cn.fan 新闻组的时候
+
+self_ref textequ <1$ self_ref>
+self_ref
+end
+```
+
+```
+int1 = 3 - 5 / 4
+te2 textequ % int1
+
+mf3 macro
+    exitm <3>
+endm
+
+ int1, te2, mf3()
+'int1, te2, mf3()'
+"int1, te2, mf3()"
+<int1, te2, mf3()>
+end
+
+ml -EP dd.msm
+
+int1 = 3 - 5 / 4
+te2 textequ % int1
+
+
+dd.msm(8): error A2008: syntax error : int1
+ int1, 2, 3
+dd.msm(9): error A2008: syntax error : int1, te2, mf3()
+'int1, te2, mf3()'
+dd.msm(10): error A2008: syntax error : int1, te2, mf3()
+"int1, te2, mf3()"
+dd.msm(11): error A2008: syntax error : int1, te2, mf3()
+<int1, te2, mf3()>
+end
+```
+
+一句话以 % 打头时. % 从更多的位置替换文本宏和宏函数
+
+; 若展开出的串最后一个 token 是宏函数名, 往后查找圆括号以展开该函数 (bug1); 否则不和后面的文本拼接
+
+- 不展开这句话里的下列位置
+    - 块宏的参数
+- 也展开这句话里的下列位置
+    - 引号里带 & 的, 尖括号里的
+    - echo, name, title, for, forc, ... 的参数
+    - 文本项
+    - 分号后面的串 (注释)
+- nl 不能大于未知 (520+?) 所以可能是循环
+- 如果宏名挨着 &, 展开时删掉 &; 引号外除非为了隔开两个名字 tok1&tok2 否则不需要 &
+- 引号里的 token 必须挨着至少 1 个 & 才算宏名, 至多 2 个 = 两边各一个即 &tok& 或 &f()&
+- 两个反斜杠变一个反斜杠; 一个反斜杠删掉
+- 删掉行首的 1 个 %, 展开, 不检查语法. 完毕查看行首, 如果行首以 % 打头, 再来一遍; 否则以模式 1 再来一遍
+
+肯定还有很多没有列出来的情况, 只能遇到了再添加
+
+## bugs
+
+### equ 后的文本接受语法检查
+
+```
+; bug: equ 不要求尖括号, 不使用尖括号时文本要接受语法检查
+; ml -Zs dd.msm
+
+% echo abc              ; abc
+abc equ value is this   ; error A2034: must be in segment block
+% echo abc              ; value is this
+abc equ value is this1
+% echo abc              ; value is this1
+end
+```
+
+
+## 代码示例
+
+### 实现 @sizestr
+
+预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
+
+- 把宏放在单独的环境里执行, 此时由于没有定义宏所以也不发生展开. 依靠现在这些语法显然实现不了
+- 模式 1 有过滤, 过滤区域的参数不展开. 计算字符个数要用循环, 正好模式 1 的 forc 不展开参数
+
+```
+; ml -Zs dd.msm
+
+$sizestr macro a
+    local cnt
+    cnt = 0
+    forc i, <a>
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+abc textequ <this is a long string and will surely fail both sizestr macro functions>
+
+% echo $sizestr(a<!bc><de>)     ; 5
+% echo @sizestr(a<!bc><de>)     ; 05
+% echo $sizestr(abc)            ; 3
+% echo @sizestr(abc)            ; 03
+% echo $sizestr(abc de)         ; 6
+% echo @sizestr(abc de)         ; 06
+
+; 如果要计算展开后的参数有几个 ascii 字符呢? 需要在宏内展开参数
+
+$$strlen macro a
+    local cnt
+    cnt = 0
+    % forc i, <a>
+        cnt = cnt + 1
+    endm
+    exitm % cnt
+endm
+
+% echo $$strlen(abc) ; 71
+end
+```
+
+### 实现 @catstr, 失败
+
+- @catstr 返回一个字符串值而不是字符串变量. 这个返回文本宏就行了
+- 要接受参数, 只能是宏过程或宏函数. 宏过程没法返回值, 只能用宏函数. 参数数量不定, 只能用 vararg, 丢一层尖括号; 拼接字符串时问题不大, 要求调用处在必要时给文本加尖括号. vararg 里保存的是扒了一层尖括号并混入逗号的串, 这就是参数的最完整形式. 接下去既不能用 for 也不能调用函数, 因为会再丢一层尖括号. 那只剩 forc 能用了
+- 引号和尖括号里的逗号不分开参数, 尖括号可以嵌套; 所以用 sq, dq 表示单, 双引号, 取值 0 或 1; 用 ab 表示尖括号的嵌套等级
+
+在试了几个串后我写下了这个串 <!<!<!<!<!<ab, cd>, 34
+
+vararg 拿到的是 `<<<<<ab, cd,34`, @catstr 输出 `<<<<<ab, cd34`, 问题来了: 该保留哪些逗号?
+
+我刚才说 vararg 丢一层尖括号在拼接字符串时问题不大? 事实证明我错了, 丢尖括号问题太他妈大了!
+
+仔细想想丢尖括号只是小问题, 根本问题在于 vararg 是 1 个参数, 不可能把它还原到调用时的状态, 它不是json 那样的转义字符串. 多个参数合并为 1 个 vararg 时丢失了参数个数这个信息, 相比之下丢一层尖括号根本不算事.
+
+由于无法取得传入的参数, 无法实现 catstr.
+
+### todo: toupper
+
+难点: 怎么把一个小写字符的大写形式放入文本宏? 我不想查表. 话说回来, 宏里面怎么查表?
+
+等价问题: x = "a" 让 x 保存字符 a 的 ascii 值; 现在有 ascii 值, 怎么得到字符?
+
+```
+; ml -D s="a E" -EP dd.msm
 
 ifnb s
     temp textequ <>
@@ -565,50 +642,90 @@ endif
 end
 ```
 
-**非行首的重复块**
+### 非行首的重复块和宏过程
 
 ```
-; ml -EP dd.msm
+; ml -Zs dd.msm
 
-; error A2008: syntax error : repeat
-; 省略另外两个 A2008. 把 textequ % 换成 =, 错误一样
-repeat_line_part textequ % 1 * \
-    2 * \
-    repeat 3
+; text macro 不能包含换行, 重复块只能生成行, 所以尝试续行符. 想用重复块生成下面定义 te1 的语句
+
+te1 textequ % 1 * 2 * \
     3 * \
-    endm
+    3 * \
+    3 * \
     1
-% echo repeat_line_part
 
-; 这个既然报 invalid symbol type 说明并没有当成字符串, 可能是想当行内宏处理发现不行, 就模糊的透露了名词 symbol type
-repeat_line_part_macro macro
+% echo te1 ; 54
+
+; repeat 看似在行首, 但其上一行对 repeat 报错说明续行符生效了, repeat 不在行首
+; 这里失败的原因是 repeat 不在行首所以不能展开, 还是 textequ 不接受 repeat?
+
+te2 textequ % 1 * 2 * \ ; error A2008: syntax error : repeat
+repeat 3
+    3 * \               ; error A2008: syntax error : integer
+endm
+    1                   ; error A2008: syntax error : integer
+
+; 宏过程也不行
+
+mpart macro
     repeat 3
         3 * \
     endm
 endm
-; error A2148: invalid symbol type in expression : repeat_line_part_macro
-repeat_line_part2 textequ % 1 * \
-    repeat_line_part_macro
-    1
+
+te3 textequ % 1 * \ ; error A2148: invalid symbol type in expression : mpart
+    mpart
+    1               ; error A2008: syntax error : integer
+
+; mpart ; fatal error DX1020: unhandled exception: Page fault
+
+abc = 1   mpart ; error A2206: missing operator in expression
+abc = 1 + mpart ; error A2148: invalid symbol type in expression : mpart
+end
 ```
 
-### 输入输出
 
-输入
-- 写在源文件里的字面量
-- **包含**的文件
-- 通过命令行 -D 定义的文本宏
-- **无法**在运行时实时获取用户输入
 
-输出
-- 展开后的文本; 仅在内存中, 不修改源文件. 对宏来说可以展开为随意的文本, 但对 masm 来说文本必须符合 masm 语法
-- echo 在编译时往命令行输出文本
 
-#### 包含
 
-`include filename`
 
-用文件 filename 的内容替换上面那句话. 如果 filename 包含 `\;<>'"`, 需要用尖括号包起来.
+
+
+
+
+
+
+## 致谢
+
+🚧 *under construction*
+
+2019.9.14 下午, 和[俞悦](https://github.com/josephyu19850119)讨论后做出下列修改, 并从 txt 改为 md
+
+- (太费解) 删除令人费解的名词比如把 token 翻译为信物; 用 A.D. 表示公元后; css 术语 inline, block, inline-block
+- (太吓人) 删除对续行的描述
+- (太抽象) 重新把示例代码混入介绍, 早先是把这俩分开了; 建议是开头添加 hello world, 考虑之后在开头添加速成课
+- (太误导) 明确对 610guide (Microsoft MASM 6.1 Programmer's Guide) 的引用: 用 "610guide" 代替 "本书"
+
+2022.9.14 major rewrite in the hope of making a way better readability
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
+## 预处理 111111111111111
+
 
 ### 展开
 
@@ -619,58 +736,6 @@ repeat_line_part2 textequ % 1 * \
 记住这只是有益的假象, 用来保持源代码的行号. 宏在编译前展开, 消失.
 
 前面已经学习了展开重复块, 下面要说展开 3 种具名宏: 文本宏, 宏过程, 宏函数.
-
-### 文本宏
-
-文本宏即字符串变量, 在使用之前需要先定义. 关键字 `textequ` 定义文本宏, 语法如下:
-
-`tag textequ text-item`
-
-成分 | 解释
----|---
-tag | 宏名
-textequ | 和关键字 catstr 是同义词
-text-item | 文本项, 在下面解释
-
-<span id=text-item>文本项</span> | 解释
----|---
-\<text> | text 是字符串字面量, 不能包含 \n; 转义字符: ! 转义下一个字符, \ 续行
-% constexpr | 按当前 radix 对常量表达式求值, 转为字符串
-macrofunction() | 调用[宏函数](#宏函数) macrofunction 并使用其返回值
-textmacro | tag 是文本宏 textmacro 的值的**别名**
-
-展开文本宏就是把文本宏的名字替换为文本宏的值
-
-```
-; textequ. ml -EP dd.msm
-
-;                         pp = preprocess
-str1  textequ <abc>     ; pp: str1 textequ <abc>, str1 赋值
-str2  textequ str1      ; str2 的值是 str1 的值
-;                         如果 str1 未定义, error A2006: undefined symbol : str1
-;                         如果 str1 不是文本宏, error A2051: text item required
-;                         如果 str1 是宏函数但用的是 str1 而不是 str1(), error A2051: text item required
-str1  textequ <new>     ; str1 的值变了, str2 的值没变
-%str3 textequ  str2     ; pp: str3 textequ abc, 行首 % 导致展开本行的宏名
-;                         想创建 abc 的别名但 abc 未定义, error A2006: undefined symbol : abc
-str4  textequ <str2>    ; pp: str4 textequ <str2>, str4 的值是字符串 str2
-%str5 textequ <str2>    ; pp: str5 textequ <abc>, 行首 % 导致展开本行的宏名
-num = 4                 ; 变量 num 的类型是整数, 值是 4
-val textequ % 3 + num   ; 变量 val 的类型是字符串, textequ 右边的 % 把其后的字符串作为表达式求值并转为字符串, val = 7
-```
-
-```
-; 展开时只查找已知的宏. ml -EP dd.msm
-
-earlier textequ <later>                             ; earlier textequ <later>
-%echo earlier                                       ; echo later
-later textequ <i am "later">                        ; later textequ <i am "later">
-%echo earlier                                       ; echo i am "later"
-use_later1 textequ <"later" = insert later here>    ; use_later1 textequ <"later" = insert later here>
-%echo use_later1                                    ; echo "later" = insert i am "later" here
-%use_later2 textequ <"later" = insert later here>   ; use_later2 textequ <"later" = insert i am "later" here>
-%echo use_later2                                    ; echo "later" = insert i am "later" here
-```
 
 ### 宏过程
 
@@ -988,17 +1053,6 @@ end
 ```
 
 ```
-; 模式 1 的 nesting level 不能大于 20. ml -EP dd.msm
-
-; error A2123: text macro nesting level too deep, 多 deep 算 too deep? 用下面代码试了试
-; 展开出了 21 个 1$. 所以 A2123 的 too deep 指的应该是 > 20
-; 这个 > 20 真 tm 熟悉, 我记得 windows api 的 winproc 也检测递归, 数量好像也是 20, 那还是我上 cn.fan 新闻组的时候
-
-self_ref textequ <1$ self_ref>
-self_ref
-```
-
-```
 ; 模式 1 在递归时的一些观察. ml -EP dd.msm
 
 ; 把 1$ 换成...
@@ -1185,91 +1239,6 @@ todo: 感觉模式 2 只看初始内容里的 &, 不管展开出的 &. 证明它
 end
 ```
 
-### 用于处理字符串的指示和预定义函数
-
-\* *610guide p???/p190 String Directives and Predefined Functions*
-
-- 指示的 return 有点不准确, 因为这 4 个指示取代了 textequ, =; catstr 和 textequ 是同义词
-- 指示是关键字, 不区分大小写; 宏函数是名字, 区分大小写时 (`option casemap`, `-C[p|u|x]`) 必须匹配大小写
-- instr 的第一个参数是可选参数, 若要不提供此参数, 指示是不写, 宏函数是空逗号
-- string 下标从 1 开始
-- 和其它宏函数一样, 这 4 个预定义宏函数不展开文本宏参数
-
-directive | macro function | return | usage | echo
----|---|---|---|---
-catstr ||       string | `string catstr <ab>, % 34`             | ab34
-|| @catstr  |   string | `% echo @catstr(<ab>, % 34, <???>)`    | ab34???
-instr ||        number | `number instr 3, <abcdabc>, <abc>`     | 5
-|| @instr   |   string | `% echo @instr(, <abcdabc>, <abc>)`    | 01
-sizestr ||      number | `number sizestr <abcdefg>`             | 7
-|| @sizestr |   string | `% echo @sizestr(<abcdefg>)`           | 07
-substr ||       string | `string substr <abcdefg>, 3, 2`        | cd
-|| @substr  |   string | `% echo @substr(<abcdefg>, 3)`         | cdefg
-
-```
-; 实现 @sizestr. ml -Zs dd.msm
-;
-; 预定义的宏函数 @sizestr 计算参数的 ascii 字符个数, 不展开参数. 如何不展开参数? 若干想法
-; - 把宏放在单独的环境里执行, 此时由于没有定义宏所以也不发生展开. 依靠现在这些语法显然实现不了
-; - 模式 1 有过滤, 过滤区域的参数不展开. 计算字符个数要用循环, 正好模式 1 的 forc 不展开参数
-
-$sizestr macro a
-    local cnt
-    cnt = 0
-    forc i, <a>
-        cnt = cnt + 1
-    endm
-    exitm % cnt
-endm
-
-abc textequ <this is a long string and will surely fail both sizestr macro functions>
-
-% echo $sizestr(a<!bc><de>)     ; 5
-% echo @sizestr(a<!bc><de>)     ; 05
-% echo $sizestr(abc)            ; 3
-% echo @sizestr(abc)            ; 03
-% echo $sizestr(abc de)         ; 6
-% echo @sizestr(abc de)         ; 06
-
-; 如果要计算展开后的参数有几个 ascii 字符呢? 需要在宏内展开参数
-
-$$strlen macro a
-    local cnt
-    cnt = 0
-    % forc i, <a>
-        cnt = cnt + 1
-    endm
-    exitm % cnt
-endm
-
-% echo $$strlen(abc) ; 71
-end
-```
-
-```
-实现 @catstr.
-
-1. @catstr 返回一个字符串值而不是字符串变量. 这个返回文本宏就行了
-2. 要接受参数, 只能是宏过程或宏函数. 宏过程没法返回值, 只能用宏函数. 参数数量不定, 只能用 vararg,
-丢一层尖括号; 拼接字符串时问题不大, 要求调用处在必要时给文本加尖括号. vararg 里保存的是扒了一层尖括
-号并混入逗号的串, 这就是参数的最完整形式. 接下去既不能用 for 也不能调用函数, 因为会再丢一层尖括号.
-那只剩 forc 能用了
-3. 引号和尖括号里的逗号不分开参数, 尖括号可以嵌套; 所以用 sq, dq 表示单, 双引号, 取值 0 或 1;
-用 ab 表示尖括号的嵌套等级
-
-在试了几个串后我写下了这个串
-<!<!<!<!<!<ab, cd>, 34
-vararg 拿到的是 `<<<<<ab, cd,34`, @catstr 输出 `<<<<<ab, cd34`
-问题来了: 该保留哪些逗号?
-
-我刚才说 vararg 丢一层尖括号在拼接字符串时问题不大? 事实证明我错了, 丢尖括号问题太他妈大了!
-
-仔细想想丢尖括号只是小问题, 根本问题在于 vararg 是 1 个参数, 不可能把它还原到调用时的状态, 它不是
-json 那样的转义字符串. 多个参数合并为 1 个 vararg 时丢失了参数个数这个信息, 相比之下丢一层尖括号根
-本不算事.
-
-由于无法取得传入的参数, 无法实现 catstr.
-```
 
 ### opattr, @cpu, pushcontext, popcontext
 
@@ -1378,7 +1347,7 @@ end
 
 masm 不支持调试宏程序, 没有断点和单步执行. echo, -EP, 错误信息是常用的调试手段.
 
-## masm 和 c 的对比
+## masm 和 c 的预处理
 
 ```
 macro of masm                   c
@@ -2676,15 +2645,305 @@ end
 - 宏名不能是拼接出来的
 ```
 
-## 致谢
 
-🚧 *under construction*
 
-2019.9.14 下午, 和[俞悦](https://github.com/josephyu19850119)讨论后做出下列修改, 并从 txt 改为 md
 
-- (太费解) 删除令人费解的名词比如把 token 翻译为信物; 用 A.D. 表示公元后; css 术语 inline, block, inline-block
-- (太吓人) 删除对续行的描述
-- (太抽象) 重新把示例代码混入介绍, 早先是把这俩分开了; 建议是开头添加 hello world, 考虑之后在开头添加速成课
-- (太误导) 明确对 610guide (Microsoft MASM 6.1 Programmer's Guide) 的引用: 用 "610guide" 代替 "本书"
+
+## to be deleted
+
+to be deleted | 例子 | 解释
+-|-|-
+string |
+|| args as `% arg` of... | catstr/exitm/macro-function/macro-procedure/textequ
+|| args as `f(arg)`, `f(<arg>)` | [宏函数](#宏函数) f 把前述参数视为字符串
+|| arguments of macro function
+text macro || text macro 和 string 的区别是啥??? 字符串变量 ([文本宏](#文本宏))
+
+- 合集: 热身运动, 💀 HBD & hold your breath
+    - [拼接字符串](#拼接字符串)
+    - [数组](#数组)
+
+
+### 常见宏代码
+
+- 确保已经安装了 masm, 在命令行输入 ml 回车以确认
+- 在命令行 cd 到本项目目录, 比如 c:\code\masm. dosbox 无需此步骤
+- 在此目录新建文件 dd.msm
+- 把下面的代码粘贴到 dd.msm 里, 在命令行用 ml -Zs dd.msm 运行
+
+*readme 里讲了 dosbox 的使用方法. 选项 -Zs 说只做语法检查*
+
+**用关键词 echo, 在编译时输出文本**
+
+```
+echo hello world
+end
+```
+
+**用关键词 echo, 在编译时输出使用宏定义的变量**
+
+```
+int1 = 3
+str1 textequ <some text>
+str2 textequ % int1
+
+% echo int1 = str2, str-1 = str1
+end
+```
+
+**循环, 函数调用, 在编译时输出计算后的值**
+
+```
+fibonacci_cyc macro n: =<5>
+    local n1, n2, n3, i
+
+    i = 2
+    n1 = 0
+    n2 = 1
+
+    ;; can be `repeat n - 2` thus eliminates `i`
+    while i lt n
+        n3 = n1 + n2
+        n1 = n2
+        n2 = n3
+        i = i + 1
+    endm
+
+    exitm % n1 + n2
+endm
+
+% echo fibonacci_cyc(47)
+; it can accurately calculate up to 47 (2971215073)
+end
+```
+
+**分支, 递归函数**
+
+```
+fibonacci_rec macro n: =<5>
+    if n lt 1
+        exitm <0>
+    elseif n eq 1
+        exitm <1>
+    else
+        exitm % fibonacci_rec(% n - 1) + fibonacci_rec(% n - 2)
+    endif
+endm
+
+% echo fibonacci_rec(20)
+end
+```
+
+**在编译时输出字符串长度**
+
+从命令行用 -D 传入字符串变量 s, 比如 `ml -D s="how would you count this?" -Zs dd.msm`
+
+```
+ifdef s
+    len1 sizestr s
+    len2 textequ % len1
+
+    % echo s
+    % echo has a length of len2
+else
+    echo variable s is not defined
+endif
+end
+```
+
+\* *试试 s="the name is s"*
+
+**输出 masm 程序**
+
+用 `ml dd.msm` 生成 dd.exe, 然后 `dd` 运行它.
+
+*当 masm 版本大于 6.11 时下面代码生成 windows 程序; 否则生成 dos 程序*
+
+```
+if @version le 611
+
+start   textequ <abc>
+
+xxx     segment stack
+start:
+        mov     ax, cs
+        mov     ds, ax
+        mov     dx, offset s
+        mov     ah, 9
+        int     21h
+
+        mov     ax, 4c00h
+        int     21h
+
+s       byte    "16 bit program compiled with masm 611-$", 16 dup (?)
+xxx     ends
+
+else
+
+start   textequ <_main>
+
+_TEXT   segment flat
+start:
+
+        includelib kernel32.lib
+GetStdHandle    proto near32 stdcall :dword
+WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
+
+        push    -11 ; -11 = STD_OUTPUT_HANDLE
+        call    GetStdHandle ; sets eax on return
+
+; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite,
+; LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved. push backwards
+        push    0
+        push    offset dwd
+        push    sizeof s
+        push    offset s
+        push    eax
+        call    WriteConsoleA
+
+        ret
+_TEXT   ends
+
+data    segment flat
+s       byte    "32 bit program compiled with masm > 611"
+dwd     dword   ?
+data    ends
+
+endif
+        end     start
+```
+
+
+
+
+
+
+
+### 目录
+
+- [常见宏代码](#常见宏代码)
+- 目录
+- [预处理](#预处理)
+    - [常量表达式](#常量表达式)
+    - [变量](#变量)
+    - [常见操作符](#常见操作符)
+    - [分支](#分支)
+    - [重复块](#重复块)
+    - [输入输出](#输入输出)
+        - [包含](#包含)
+    - [展开](#展开)
+    - [文本宏](#文本宏)
+    - [宏过程](#宏过程)
+    - [宏函数](#宏函数)
+    - [参数](#参数)
+    - [两种查找文本宏和宏函数的模式](#两种查找文本宏和宏函数的模式)
+        - [模式 1](#模式-1)
+        - [模式 2](#模式-2)
+        - [示例: 宏名](#示例-宏名)
+        - [撮合](#撮合)
+        - [一些性质](#一些性质)
+    - [用于处理字符串的指示和预定义函数](#用于处理字符串的指示和预定义函数)
+    - [opattr, @cpu, pushcontext, popcontext](#opattr-cpu-pushcontext-popcontext)
+    - [常见编译错误](#常见编译错误)
+    - [调试?](#调试)
+- [masm 和 c 的对比](#masm-和-c-的对比)
+- [观察与思考](#观察与思考)
+    - [退化](#退化)
+    - [-EP 的错误输出? 执行结果正确](#-ep-的错误输出-执行结果正确)
+    - [前序遍历, 以及 masm 令人着急的处理能力](#前序遍历-以及-masm-令人着急的处理能力)
+    - [模式 2 不撮合](#模式-2-不撮合)
+- [代码演示](#代码演示)
+    - [返回函数名](#返回函数名)
+    - [展开指定的次数](#展开指定的次数)
+    - [展开本来不展开的文本宏](#展开本来不展开的文本宏)
+    - [Douglas Crockford: Memoization](#douglas-crockford-memoization)
+- [610guide 和 masm 的 bug](#610guide-和-masm-的-bug)
+    - [闪现](#闪现)
+    - [name TEXTEQU macroId?](#name-textequ-macroId)
+    - [masm 忽略句子中自己看不懂的部分](#masm-忽略句子中自己看不懂的部分)
+    - [masm 忽略错误](#masm-忽略错误)
+    - [fatal error DX1020](#fatal-error-dx1020)
+    - [vararg](#vararg)
+    - [宏函数作参数时的 bug](#宏函数作参数时的-bug)
+    - [预定义的字符串函数参数可以是文本宏?](#预定义的字符串函数参数可以是文本宏)
+    - [hoisting](#hoisting)
+- [早期代码](#早期代码)
+    - [发现有 % 和无 % 的不同; 以及其它](#发现有--和无--的不同-以及其它)
+    - [宏函数的各种失败展开](#宏函数的各种失败展开)
+- [致谢](#致谢)
+
+
+
+
+
+
+newArray macro arr, rest: vararg
+    local prefix, c
+
+    c textequ <0>
+
+    for i, <rest>
+        % prefix&&&c = i
+        c textequ % c + 1
+    endm
+
+    arr macro i, val
+        ifnb <val>
+            prefix&&i = val
+            exitm <>
+        elseifdef prefix&&i
+            exitm % prefix&&i
+        else
+            exitm <>
+        endif
+    endm
+endm
+
+memoizer macro memo, f
+    local shell
+
+    shell macro n
+        local result
+
+        result textequ memo(n)
+
+        ifb result
+            result textequ f(<shell>, n)
+            memo(n, result)
+        endif
+
+        exitm result
+    endm
+
+    exitm <shell>
+endm
+
+newArray arrFib, 0, 1
+newArray arrFac, 1, 1
+cbFib macro shell, n
+    exitm % shell(% n - 1) + shell(% n - 2)
+endm
+cbFac macro shell, n
+    exitm % n * shell(% n - 1)
+endm
+
+fibonacci textequ memoizer(<arrFib>, <cbFib>)
+factorial textequ memoizer(<arrFac>, <cbFac>)
+
+ifdef n
+    %% echo fibonacci (n) factorial (n)
+else
+    %% echo fibonacci(19) factorial(12)
+endif
+end
+
+
+
+
+
+
+
+
+
 
 

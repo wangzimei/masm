@@ -1,60 +1,22 @@
 
 contents of this repository
 
-    intro.md            8086, dos, masm 6
-    macros.md           masm 6 macros
+    /intro.md           8086, dos, masm 6
+    /macros.md          masm 6 macros
 
-compile sample codes
-
-    8086/masm611        not included in repo
-    out                 compiler outputs
+    /dos                mount this folder with dosbox
+    /dos/glide211       not included in repo
+    /dos/masm611        not included in repo
 
 unsorted
 
-    8086                16 位实模式 dos
-    copy                抄来的东西
-    iaie                intel 指令扩展
-    x64                 保护模式, ring3, windows
+    /8086               16 位实模式 dos
+    /copy               抄来的东西
+    /x64                保护模式, ring3, windows
 
+==================== install dosbox or dosbox-x
 
-==================== 编写和执行 masm 汇编程序
-
-compile 16 bits masm 6.x code and run it in dos 5+
-
-* macro programs run at compile time, you can compile them using newer versions of
-ml.exe, thus avoid dos and dosbox altogether.
-
-choices of toolchain:
-1. online editor or compiler
-    best choice, but i can't find any @2022.7.20
-2. dosbox
-    shared file system between local machine and dosbox
-3. online emulator
-    closest i've ever found is pcjs.org
-    masm 4.0  on ms-dos 3.20    https://www.pcjs.org/software/pcjs/
-    masm 5.10 on pc-dos 3.30    https://www.pcjs.org/software/pcx86/lang/microsoft/masm/5.10x/
-4. bochs, qemu, virtualbox, ...
-    dosbox 不是模拟器, 有些指令执行的不正确, 这时需要在模拟器里执行
-
-download dosbox at https://www.dosbox.com/, mac users can also install via homebrew
-download masm 6.x, e.g. https://sourceforge.net/projects/masm611/
-install dosbox, configure it, see relevant section below
-launch dosbox, install masm 6.x
-write code in any editor, switch to dosbox, ml file
-debug generated executable using cv.exe
-
-redirect ml outputs to file named fff
-> fff ml -Zs dd.msm
-
-view binary
-- macos 常用 hexdump, od, xxd
-    xxd out/dd.obj
-- windows powershell
-    format-hex out/dd.obj
-
-https://en.wikipedia.org/wiki/Microsoft_Macro_Assembler
-
-==================== dosbox and config
+download https://www.dosbox.com/, mac users can also install via homebrew
 
 macos
 把 dosbox.app 放入 /applications, 运行 dosbox, 执行
@@ -67,47 +29,99 @@ win10
 C:\Users\王子美\AppData\Local\DOSBox\dosbox-0.74-3.conf
 开始菜单的 dosbox 里面也有打开配置文件的条目
 
-假设想让 c:\code\masm 做为 dosbox 的虚拟 c 盘
-关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 节写
-mount c c:\code\masm
-c:
+dosbox-x on macos
 
-禁用捕获鼠标: 配置文件里搜索 autolock=true, 改成 false
+https://dosbox-x.com/
 
-打开 dosbox 安装 masm. 假设安装在 c:\code\masm\8086\masm611, 要配置环境变量
-关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 添加
-set path=c:\8086\masm611\bin;c:\8086\masm611\binr;%path%
+下载后解压缩得到两个目录, 用哪个都行, 我用的是 dosbox-x-sdl2.
 
-[autoexec] 还可以添加这些不重要的语句
-code view (cv) 帮助
-    set helpfiles=c:\8086\masm611\help\*.hlp
-让 cv 使用预配置的 clrfile.cv4 和 current.sts, 就不再在当前目录生成这俩文件了
-    set init=c:\8086\masm611\init
+首次打开 dosbox-x.app 提示 "dosbox-x" is damaged and can't be opened. README.txt 里有解决办法, 就是运行 xattr 命令.
 
-mount 是 dosbox 命令, 里面的路径是真实路径; set 和 c: 是 dos 命令, 里面的路径是虚拟的 dos 里的路径
+打开后有个对话框让选择目录, 这选择的是 working directory, 会从这里读取配置文件, 也支持 dosbox 的配置文件.
+我把配置文件 dosbox-x.conf 放在 dosbox-x.app 所在目录, 所以就选择此目录.
 
-常用命令
+选择目录后可以选择保存, 再次打开 dosbox-x 就自动设置此目录为 working directory 而无需再次选择. 此信息记录在
+~/Library/Preferences/DOSBox-X <version number> Preferences
+
+==================== dosbox config
+
+关闭 dosbox, 修改配置文件, 打开 dosbox
+
+[sdl]
+autolock = false            不捕获鼠标
+clip_paste_speed = 3        从剪切板粘贴到 dosbox 的速度
+
+[autoexec]
+mount c c:\code\masm\dos    让 c:\code\masm\dos 做为 dosbox 的虚拟 c 盘
+c:                          切换到 c
+
+dosbox 常用命令
 CTRL-F4     重新扫描目录 - 现在感觉不常用, vscode 里随便修改文件, dosbox 里没发现有缓存问题
 CTRL-F10    释放鼠标捕获
 
+dosbox-staging 0.75.1 prevents display idle sleep
+https://github.com/dosbox-staging/dosbox-staging/issues/630
+没解决阻止屏幕空闲的问题, 活动监视器里能耗 > dosbox-x > 防止睡眠依然是是, 只能关闭 dosbox-x
+
+==================== masm 6.11
+
+https://en.wikipedia.org/wiki/Microsoft_Macro_Assembler
+
+download masm 6.x, e.g.
+https://sourceforge.net/projects/masm611/
+https://github.com/qb40/masm
+
+打开 dosbox 安装 masm, 假设安装在 dos/masm611. 安装后要配置环境变量
+
+quick help, code view 帮助
+    set helpfiles=c:\masm611\help\*.hlp
+让 cv 使用预配置的 clrfile.cv4 和 current.sts, 就不再在当前目录生成这俩文件了
+    set init=c:\masm611\init
+masm 可执行文件
+    set path=c:\masm611\bin;c:\masm611\binr;%path%
+nmake, link, pwb 使用该目录
+    set tmp=c:\out
+
+关闭 dosbox, 打开配置文件, 在最下面的 [autoexec] 添加
+[autoexec]
+@echo off
+mount c c:\code\masm\dos
+set helpfiles=c:\masm611\help\*.hlp
+set init=c:\masm611\init
+set path=c:\masm611\bin;c:\masm611\binr;%path%
+set tmp=c:\out
+c:
+
+mount 是 dosbox 命令, 里面的路径是真实路径; set 和 c: 是 dos 命令, 里面的路径是虚拟的 dos 里的路径
+
 ==================== online tools
 
-https://carlosrafaelgn.com.br/Asm86/
-32 bit assembly with debugging. unknown syntax, simple and fun
+assembly, view disassembly
 
 https://godbolt.org/
-语言选 assembly, 编译器版本很多但种类不多, 没找到 16 位汇编
-nasm 64 位代码的编译选项 -felf64
+-h          show help and exit (also --help)
+-felf64     ELF64 (x86_64) object files (e.g. Linux)
+-fbin       <No output: objdump returned 1>
+-fobj       <No output: objdump returned 1>
+
+disassembly
 
 https://onlinedisassembler.com/odaweb/
-反汇编, 选项多
+https://disasm.x32.dev/
 
-https://defuse.ca/online-x86-assembler.htm
-x86, x64 汇编和反汇编, 选项少, 易用, 有的汇编结果不正确
+debug
+
+https://idrist11.github.io/8086-Online-IDE/app.html 8086
+https://carlosrafaelgn.com.br/Asm86/                32 bit assembly with debugging. unknown syntax, simple and fun
+https://www.onlinegdb.com/online_gcc_assembler
+https://app.x64.halb.it/                            64 bit
 
 ==================== online emulator
 
 https://www.pcjs.org/
+
+masm 4.0  on ms-dos 3.20 https://www.pcjs.org/software/pcjs/
+masm 5.10 on pc-dos 3.30 https://www.pcjs.org/software/pcx86/lang/microsoft/masm/5.10x/
 
 看起来有很多硬件配置和软盘, 但网站很难用
 
@@ -188,5 +202,19 @@ https://superuser.com/questions/554886/mount-a-vhd-virtualbox-in-osx
 x86, x64 protected mode ring0                           驱动程序?
 8086, x86, x64 without os                               如何编译是个问题, 在另外的系统里编译?
 intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
-gpu assembly programming                                masm 显然编译不了
+
+==================== 相关知识
+
+用逻辑门组织数字电路. 需要用户自己动手
+https://circuitverse.org/simulator
+
+cpu 是大型集成电路, 运行的每一刻, 其内部都存在若干连通的电路. 下面网页展示了连通的电路
+http://visual6502.org/JSSim/index.html
+
+Ben Eater 通过给 cpu 连接一个很慢的时钟来展示 cpu 的工作步骤, 并展示了很多其他内容
+https://www.youtube.com/playlist?list=PLowKtXNTBypFbtuVMUVXNR0z1mu7dp7eH
+
+Ralf Brown's Interrupt List
+http://www.ctyme.com/rbrown.htm
+
 
