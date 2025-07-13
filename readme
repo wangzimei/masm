@@ -5,8 +5,10 @@ contents of this repository
     /macros.md          masm 6 macros
 
     /dos                mount this folder with dosbox
+
     /dos/glide211       not included in repo
     /dos/masm611        not included in repo
+    /dos/watcom         not included in repo
 
 unsorted
 
@@ -14,9 +16,9 @@ unsorted
     /copy               抄来的东西
     /x64                保护模式, ring3, windows
 
-==================== install dosbox or dosbox-x
+==================== install dosbox
 
-download https://www.dosbox.com/, mac users can also install via homebrew
+https://www.dosbox.com/
 
 macos
 把 dosbox.app 放入 /applications, 运行 dosbox, 执行
@@ -29,7 +31,11 @@ win10
 C:\Users\王子美\AppData\Local\DOSBox\dosbox-0.74-3.conf
 开始菜单的 dosbox 里面也有打开配置文件的条目
 
-dosbox-x on macos
+dosbox-staging 0.75.1 prevents display idle sleep
+https://github.com/dosbox-staging/dosbox-staging/issues/630
+没解决阻止屏幕空闲的问题, 活动监视器里能耗 > dosbox-x > 防止睡眠依然是是, 只能关闭 dosbox-x
+
+==================== install dosbox-x on macos
 
 https://dosbox-x.com/
 
@@ -45,33 +51,58 @@ https://dosbox-x.com/
 
 ==================== dosbox config
 
-关闭 dosbox, 修改配置文件, 打开 dosbox
-
 [sdl]
-autolock = false            不捕获鼠标
-clip_paste_speed = 3        从剪切板粘贴到 dosbox 的速度
+autolock            = false 不捕获鼠标
+clip_paste_speed    = 3     从剪贴板粘贴到 dosbox-x 的速度, 默认值 30, 越小越容易丢失字符
 
 [autoexec]
 mount c c:\code\masm\dos    让 c:\code\masm\dos 做为 dosbox 的虚拟 c 盘
 c:                          切换到 c
 
-dosbox 常用命令
+常用命令
 CTRL-F4     重新扫描目录 - 现在感觉不常用, vscode 里随便修改文件, dosbox 里没发现有缓存问题
 CTRL-F10    释放鼠标捕获
 
-dosbox-staging 0.75.1 prevents display idle sleep
-https://github.com/dosbox-staging/dosbox-staging/issues/630
-没解决阻止屏幕空闲的问题, 活动监视器里能耗 > dosbox-x > 防止睡眠依然是是, 只能关闭 dosbox-x
+==================== dosbox-x debugger
+
+https://github.com/joncampbell123/dosbox-x/blob/master/README.debugger
+
+On other systems including Linux and Mac OS X, DOSBox-X must be started
+from a terminal in order to enable the debugger.
+
+因此要从 macos 终端进入 dosbox-x.app 所在目录执行 dosbox-x.app/contents/macos/dosbox-x
+- 要正确显示调试器的内容, 486 cpu 对应的终端窗口高度至少 31 行
+- 调试器有 4 个子窗口, tab 在它们之间切换键盘焦点
+- 从 doxbox-x 菜单或配置文件设置 cpu core = normal core 而不是 dynamic core
+- 也可以用 vscode 的集成终端
+
+从终端打开 dosbox-x 后有至少 2 种进入调试器的方法
+- 一般是在 dosbox-x 的 dos 命令行启动: debugbox path/to/xxx.exe
+- 在 dos4g 程序源码里写 int3, 用 watcom 的 dos32a 执行 exe 会提示发现断点, 是否跟踪. 按 t 是跟踪,
+    往往还需要选择 dosbox-x 菜单 debug > start dosbox-x debugger, 这选项虽显示为勾选状态但每次都
+    要点一下. 进入调试器后是在实模式代码而不是断点附近, 要继续执行好多指令才能走到代码里 int3 的下一行.
+    dosbox-x 的 z:bin\dos32a 没这个效果. 不明白, 真的神奇
+
+这个调试器不能脱离或停止. 代码出错不得不重启 dosbox-x 后终端就没法用了必须重新打开, 极其麻烦.
+所以在 dosbox-x.app 所在目录新建文件 debug.command 粘贴下列内容,
+#!/bin/zsh
+cd "${0:h}"
+dosbox-x.app/contents/macos/dosbox-x
+
+终端进入 dosbox-x.app 所在目录执行 chmod +x debug.command
+双击 debug.command 会打开终端并启动 dosbox-x, 后续可以调用 debugger.
+
+help 未列出的命令
+run     调试里的 run
+quit    关闭 dosbox-x
 
 ==================== masm 6.11
 
-https://en.wikipedia.org/wiki/Microsoft_Macro_Assembler
-
-download masm 6.x, e.g.
 https://sourceforge.net/projects/masm611/
 https://github.com/qb40/masm
+https://www.pcjs.org/software/pcx86/lang/microsoft/masm/6.11/
 
-打开 dosbox 安装 masm, 假设安装在 dos/masm611. 安装后要配置环境变量
+把 masm 6.11 安装至 dosbox 根目录即 c:\masm611, 它需要下列环境变量,
 
 quick help, code view 帮助
     set helpfiles=c:\masm611\help\*.hlp
@@ -86,7 +117,7 @@ nmake, link, pwb 使用该目录
 [autoexec]
 @echo off
 mount c c:\code\masm\dos
-set helpfiles=c:\masm611\help\*.hlp
+set helpfiles=c:\masm611\help
 set init=c:\masm611\init
 set path=c:\masm611\bin;c:\masm611\binr;%path%
 set tmp=c:\out
@@ -116,46 +147,20 @@ https://carlosrafaelgn.com.br/Asm86/                32 bit assembly with debuggi
 https://www.onlinegdb.com/online_gcc_assembler
 https://app.x64.halb.it/                            64 bit
 
-==================== online emulator
+==================== online emulators
 
-https://www.pcjs.org/
+方便, 但都不是精确模拟, bug 也多
 
-masm 4.0  on ms-dos 3.20 https://www.pcjs.org/software/pcjs/
-masm 5.10 on pc-dos 3.30 https://www.pcjs.org/software/pcx86/lang/microsoft/masm/5.10x/
-
-看起来有很多硬件配置和软盘, 但网站很难用
-
-- 机器的硬件配置是 xml 和 json 文件, 都是自定义语法, 不知道如何操作
-    打开一个机器的页面, 有哪些硬件, 能否更换, 等等, 都做不到
-= 软件分类还可以, 都保存在软盘上, 可以用机器加载软盘
-- 软件页面应该是软件介绍, 不该像现在这样加载一个预配置的机器, 软盘里放入该软件, 希望你在机器里安装它
-    当不想用这个配置的机器时, 没地方更换. 比如
-    https://www.pcjs.org/software/pcx86/sys/dos/microsoft/6.22/
-    https://www.pcjs.org/software/pcx86/lang/microsoft/masm/6.00/
-+ 软盘列表里有 the undocumented pc, 我看过这本书, 很喜欢.
-- bug? 预配置的机器在 c 盘里执行 dir 输出的是某个目录的名字, 比如德军总部是 c:/wolf3d, win95 是 c:/windows
-- 设想选择一个预配置的机器, 在上面安装软件, 然后 save machine, 下次直接打开这个保存的机器
-    点击 save machine 下载了一个 js 文件, 需要嵌入到 html 里. 第一个念头就是删掉此 js 并放弃 save machine
-- 设想选择一个预配置的机器, 在上面安装软件, 然后 save hd, 下次打开时先启动与硬盘配套的机器, 再用 mount 加载硬盘
-    安装, save hd, 刷新页面, 选择保存的 img 文件, 点 mount. 错误: unrecognized disk format
-- 机器的 caps 既不能检测也不能控制键盘的 caps lock, 反被其控制. 有时 caps 显示的状态和实际状态正相反
-= 机器屏幕是 canvas. 图像精确; 无法复制命令行输出
-- 不共享剪切板 (win95 能共享), 不共享文件系统
-
+该网站有许多软盘资源
+https://www.pcjs.org/software/pcjs/                                 masm 4.0  on ms-dos 3.20
+https://www.pcjs.org/software/pcx86/lang/microsoft/masm/5.10x/      masm 5.10 on pc-dos 3.30
 
 https://copy.sh/v86/?profile=msdos
-
 预配置的 ms-dos 6.22, 有 c:/debug.com 和 c:/dos/debug.exe
 dir /w /on dos | more
-f3, f7 可以查看执行过的命令, 要用上下箭头切换, 先执行 doskey(.com).
+f3, f7 可以查看执行过的命令, 要用上下箭头切换, 先执行 doskey(.com)
 
-- 很消耗 cpu, 风扇不停的转
-= https://copy.sh/v86/ 似乎能稍微定义硬件配置, 还没尝试
-- caps 和 pcjs.org 的一样是纯粹的累赘
-= 机器屏幕是 div. 图像不精确; 虽不能从屏幕复制输出但能从浏览器 f12 复制元素内容
-- 不共享剪切板, 不共享文件系统
-
-==================== freedos in virtualbox
+==================== freedos on virtualbox
 
 http://wiki.freedos.org/wiki/index.php/VirtualBox
 
@@ -190,18 +195,362 @@ https://superuser.com/questions/554886/mount-a-vhd-virtualbox-in-osx
 往挂载的 vhd 里面拷贝 masm 和 code 目录之后, 一般还会在虚拟机的 c:/autoexec.bat 里把 ml.exe 所在目录加到 path 环境变量里
 这个文件的属性有系统, 在 windows 里是隐藏的
 
+==================== 86box
+
+https://86box.readthedocs.io/en/latest/index.html
+
+86Box originally started out as a fork of PCem in 2016.
+However, the codebases of both emulators have since then diverted by a lot.
+
+https://github.com/86Box/86Box/releases
+https://github.com/86Box/roms/releases
+
+86box 从下列路径查找 roms https://86box.readthedocs.io/en/latest/usage/roms.html
+1. roms subdirectory in the VM path
+2. roms subdirectory in the same directory as the emulator executable
+3. Platform-specific locations
+下载的 roms 解压缩后名字类似 roms-4.2.1, 将其改名为 roms 放到 86box.app 所在目录.
+
+86box.app/contents/macos/86box --help
+Usage: 86box [options] [cfg-file]
+-C or --config path     - set 'path' to be config file
+-P or --vmpath path     - set 'path' to be root for vm
+...
+A config file can be specified. If none is, the default file will be used.
+
+经实验, 86box 启动后寻找 vm 目录即 VM path, 对 vm 的改动会生成相应的文件保存在 vm 目录, 寻找位置是,
+- 参数 -P 或 --vmpath 指定的目录
+- 参数 -C 或 --config 指定的 cfg 文件所在的目录
+- 指定的目录不存在时, 如果只有一层则创建目录, 否则创建一个不保存设置的临时 vm
+- 如果没有上述参数, 使用 86box.app 所在目录
+
+因此可以用下列方法之一管理多个 vm,
+- 每个 vm 创建 1 个目录, 然后 86box --vmpath to-folder
+- vms 放在一起并创建多个 cfg 文件, 然后 86box cfg-file
+
+==================== ibmxt on 86box
+
+The IBM Personal Computer XT (model 5160, often shortened to PC/XT) is the
+second computer in the IBM Personal Computer line, released on March 8, 1983.
+
+ibm pc model 5160 的特点是 8 位 isa 总线.
+
+http://retro.rubenerd.com/vm-xt.htm
+https://www.minuszerodegrees.net/index.htm
+
+在 86box.app 所在目录新建文件 ibmxt.command 粘贴下列内容,
+#!/bin/zsh
+cd "${0:h}"
+86box.app/contents/macos/86box --vmpath "${0:t:r}"
+
+终端进入 86box.app 所在目录执行
+chmod +x ibmxt.command
+
+双击 ibmxt.command 启动 86box, 从工具栏选 settings 或菜单 tools > settings..., 修改下列设置:
+
+machine
+    machine
+        [8088] ibm xt (1982)
+display                 // optional
+    video
+        [isa] ibm mda
+        configure > display type > green
+storage controllers
+    hd controller
+        [isa] ibm pc fixed disk adapter (mfm)
+    fd controller
+        (choose anyone except "none")
+hard disks
+    new...
+        type
+            10 mb (chs: 306, 4, 17)
+        bus
+            mfm/rll
+floppy & cd-rom drives
+    floppy drives
+        type            // choose the first fdd
+            5.25" 720k
+
+pc/xt 没有 bios 设置, 启动时先尝试软盘再尝试硬盘. 如果要从软盘启动, 点 86box 界面
+左下角的软盘图标选 existing image (write-protected)..., 选软盘映像, 重启 vm.
+
+配套操作系统: PC DOS 2.0
+常见错误
+- 601   没有软盘控制器, 软盘错误
+- 1701  硬盘错误
+
+==================== msdos 5.0 on ibmxt on 86box
+
+https://retromedialibrary.fandom.com/wiki/MS-DOS_5.0
+
+System requirements
+- DOS 2.11 or later
+- a PC with an 8088 or higher processor
+- 512 KB of RAM
+- a low-density 3.5" or 5.25" floppy disk drive
+- A Microsoft Mouse is optional
+
+https://retromedialibrary.fandom.com/wiki/MS-DOS_6.0
+
+To upgrade to this version, you would need the same system requirements for installing MS-DOS 5.0.
+
+86box 的 [8088] ibm xt (1982) 至多 256k 内存, msdos 5.0 安装程序提示内存太小无法安装.
+https://en.wikipedia.org/wiki/IBM_Personal_Computer_XT 找不到 86box 那个至多支持 256k 内存的型号,
+这里有介绍 https://dosdays.co.uk/computers/IBM%20PC-XT%20(5160)/ibm5160.php
+
+在 86box.app 所在目录新建文件 ibmxt1986.command 粘贴下列内容,
+#!/bin/zsh
+cd "${0:h}"
+86box.app/contents/macos/86box --vmpath "${0:t:r}" --vmname '1986 pc/xt 8088 640k 10m'
+
+终端进入 86box.app 所在目录执行 chmod +x ibmxt1986.command
+双击 ibmxt1986.command 启动 86box, 从 settings 里修改下列设置:
+
+machine
+    machine
+        [8088] ibm xt (1986)
+    memory
+        640 kb
+
+软盘和硬盘设置参考 ibmxt on 86box.
+
+msdos 5.0 软盘映像有 360k 5 disks 和 720k 3 disks 两种, 我使用 720k. 安装完毕启动后
+进入 dosshell. 如果想直接进入 command.com 需要从 autoexec.bat 里删除 c:\dos\dosshell
+
+### 可选. 光驱和鼠标
+
+按下面步骤制作 dos 启动盘,
+- 点 86box 界面左下角的软盘图标, 选 new image..., dos5boot.img, 720 kb
+- 在 86box 的 dos 提示符执行 format a: /s
+完成后从 86box 弹出 dos5boot.img.
+(*) new image 的 file name 必须包含扩展名否则 86box 虽然显示有软盘但不能使用也不能弹出.
+
+从 https://www.hiren.info/downloads/dos-files 下载 mouse.com
+
+从 https://archive.org/download/vogonsdrivers_snapshot_20220726 的 (View Contents)
+下载 files/trantor_scsi_works_v1_2.zip, 解压缩, 找到 Disc 1 of 2 目录里的
+MA120.SYS, MSCDEX.EXE, TSLCDR.SYS
+
+从 macos 里双击 dos5boot.img, 往挂载的驱动器里粘贴这 4 个文件, 推出. 86box 加载此软盘, 在 c: 执行
+md programs
+cd programs
+copy a:\ma120.sys   .
+copy a:\mouse.com   .
+copy a:\mscdex.exe  .
+copy a:\tslcdr.sys  .
+cd ..
+
+执行 edit config.sys, 添加下列内容后保存, 关闭.
+device = c:\programs\ma120.sys
+device = c:\programs\tslcdr.sys /d:mscd001
+
+执行 edit autoexec.bat, 添加下列内容后保存, 关闭.
+c:\programs\mscdex /d:mscd001
+c:\programs\mouse /r22
+doskey
+
+mouse /r22 调低鼠标灵敏度, doskey.com 允许用上下箭头选择执行过的命令.
+
+从 86box 的 settings 里修改下列设置:
+
+input devices
+    mouse
+        microsoft serial mouse
+storage controllers
+    scsi
+        controller 1
+            [isa] trantor t128
+            configure > enable boot rom > (uncheck)
+floppy & cd-rom drives
+    cd-rom drives
+        bus             // choose the first odd
+            scsi
+
+点 ok 关闭 settings, 这会重启 dos, 重启进入 dos 后点左下角的光盘图标, 选 folder...
+
+### 过程和参考资料
+
+我打算在 8088 上编程查看 ems. 这需要经常往 dos 里拷贝文件, 软盘或挂载 vhd 都不方便,
+所以使用 86box 的 Folders as CDs. 顺便使用鼠标.
+
+pc/xt 的 bios 不认识鼠标和 optical disks, 需要驱动程序. 鼠标容易, cd-rom 有两种连接方式,
+- 硬盘控制器选 xtide, 硬盘总线选 ide, cd-rom 总线选 atapi
+- 硬盘随便, storage controllers 启用 scsi, cd-rom 总线选 scsi
+cd-rom 还需要驱动程序和 mscdex.exe, 这些文件只能用软盘传给 dos.
+
+没安装驱动前尝试各个 scsi 控制器发现下面两个能够检测到并显示光驱,
+storage controllers
+    scsi
+        controller 1
+            - [isa] rancho rt1000b
+            - [isa] trantor t130b
+
+用下列方式之一创建软盘映像,
+- 复制一个软盘映像比如 dos 安装盘
+- 86box 界面左下角的软盘图标或菜单 media > floppy 1, 选 new image...
+- DOSBox-X menu DOS > Create blank disk image...
+- dosbox 的 imgmake 命令
+
+一开始用软盘拷贝文件后直接修改 config.sys, 经常因为驱动执行出错死机不得不重启进入 dos 安装盘的
+command.com, 在里面里修复 c 盘的 config.sys, 非常耗时. 后来制作了一张 dos 启动盘把需要的
+文件都放了进去. 再后来先用 devload 测试, 成功后才改 config.sys.
+
+从 https://www.hiren.info/downloads/dos-files 下载 devload.com 和一些光驱驱动,
+用 devload /v xxx.sys /d:mscd001 测试,
+atapicd.sys     (hang)
+oakcdrom.sys    (hang)
+qcdrom.sys      386+
+vide-cdd.sys    divide overflow
+ma120.sys       (success)
+rtaspi10.sys    286+
+
+其他地方下载了一些驱动没一个能用
+pci_drv.zip/dos/cdrom.sys   (hang)
+es142_1.exe                 windows
+
+光驱的 atapi 总线驱动全部失败, scsi 总线成功了. 听说 atapi 光驱应该接 secondary master 但
+xtide 启动画面只看到 primary channel 没看到 secondary, 所以打算在类似 bios 的地方修改设置.
+https://www.xtideuniversalbios.org/binaries/ 有 xtide 设置工具 xtidecfg.com, 我下载了对应
+XTIDE Universal BIOS r625 的版本. 修改了一些设置想看效果发现保存修改需要 flash eeprom, 86box
+似乎不支持这么做, 所以没法查看修改效果. 只能用 scsi 光驱.
+
+有些 isa 声卡用专有接口或 ide 接口连接 cdrom, 86box 模拟了 AudioDrive ES688 and ES1688
+https://86box.net/2024/07/26/86box-v4-2.html
+
+sound
+    sound card #1
+        [isa] ess audiodrive es688
+
+这声卡我试了好几个驱动都没用, 最接近的是一个解压缩后名为 688full 目录的驱动包, 能成功安装.
+它往 c:\essutil 拷贝几个文件并修改 config.sys 和 autoexec.bat. 但重启后提示
+es968 + es1688 enable program v2.7
+copyright (c) ess technology, inc. 1995-1996
+failed to configure es968!
+
+不过即使安装了声卡驱动我也不知道如何从 86box 的设置里把光驱连接到声卡的 ide 接口.
+
+https://dosdisc.this-is-a-wendys.com/
+sys files for 86box cdroms, doesn't show any arguments
+
+https://github.com/86Box/86Box/discussions/4526
+device=aspils_d.sys /ls2000,d800,3
+device=cuni_asp.sys
+mscdex /d:mscd001
+
+https://forum.vcfed.org/index.php?threads/sound-blaster-pro-ii-cdrom-on-a-xt.12665/
+Matsushita CR-563B in XT using the SB Pro 2.0 adapter
+DEVICE=C:\CDMKE.SYS /D:MSCD001 /P:220 /S:D
+
+ma120.sys 使用说明. 下面是 1 个连接, 太长加了换行
+https://www.minuszerodegrees.net/manuals/Trantor/Trantor%20-%20SCSI%20Software
+%20and%20Utilities%20-%20User%20Guide%20-%20MAN-35%201.0%20-%20October%201992.pdf
+
+Using PC XT ROM BASIC to host XTIDE BIOS (the hard way)
+https://github-wiki-see.page/m/charlysan/x86_stuff/wiki/Using-PC-XT-ROM-BASIC-to-host-XTIDE-BIOS
+
+How do They Run: A look at the three common mouse interfaces
+https://www.ardent-tool.com/mouse/How_They_Run.html
+
+Why Not Pentium III?    https://86box.net/2022/03/21/why-not-p3
+Folders as CDs          https://86box.net/2022/11/26/86box-v3-11.html
+
+https://www.dosbox.com/wiki/IMGMOUNT
+https://dosbox-x.com/wiki/Guide%3AManaging-image-files-in-DOSBox%E2%80%90X
+https://minuszerodegrees.net/xtide/XT-IDE%20-%20Basics.htm
+https://dosdays.co.uk/topics/Manufacturers/ess.php
+https://www.daqarta.com/ess.htm
+
+https://dosdays.co.uk/topics/Software/drivers.php
+https://dosdays.co.uk/topics/Software/optical_downloads.php
+https://www.vogonsdrivers.com/
+
+==================== acc386 on 86box
+
+在 86box.app 所在目录新建文件 acc386.command 粘贴下列内容,
+#!/bin/zsh
+cd "${0:h}"
+86box.app/contents/macos/86box --vmpath "${0:t:r}" --vmname '1990 juko at046dx3 i386dx 16m 10m'
+
+终端进入 86box.app 所在目录执行 chmod +x acc386.command
+双击 acc386.command 启动 86box, 从 settings 里修改下列设置:
+
+machine
+    machine type
+        [1985] i386dx
+    machine
+        [acc 2168] juko at046dx3
+display
+    video
+        [isa] ati ega wonder 800+
+storage controllers
+    hd controller
+        [isa16] pc/at ide controller
+    fd controller
+        internal controller
+hard disks
+    existing...
+        (copy msdos5.vhd from "msdos 5.0 on ibmxt on 86box" and choose it)
+        bus
+            ide
+        id
+            0:0
+floppy & cd-rom drives
+    floppy drives
+        type            // choose the first fdd
+            3.5" 720k
+    cd-rom drives
+        bus             // choose the first odd
+            atapi
+        channel
+            0:1
+        type
+            86box cd-rom 1.00
+
+点 ok 关闭 settings, 这会重启虚拟机, 启动后按 ctrl-esc 进入 bios 设置合适的软盘和硬盘参数以启用它们.
+
+从 https://www.hiren.info/downloads/dos-files 下载 vide-cdd.sys, 通过在 msdos 5.0 on ibmxt on 86box
+里制作的 dos 启动盘将其拷贝至 c:programs.
+
+config.sys 应包含
+device = c:\programs\vide-cdd.sys /d:mscd001
+
+autoexec.bat 应包含
+c:\programs\mscdex /d:mscd001
+
+==================== mame
+
+https://docs.mamedev.org/usingmame/aboutromsets.html
+
+x* links to x
+    parent          (a*, b*, c , d1)
+     clone          (a*, b*, c*, d2)
+non-merged set      (a*, b*, c , d1), (a*, b*, c , d2) = parent, parent
+     split set      (a*, b*, c , d1), (a*, b*, c*, d2) = parent, clone
+    merged set      (a*, b*, c , d1, d2)         = merge(parent, clone)
+      bios set      (a)
+    device set      (b)
+
+(google AI Overview) can i use mame to custom build a virtual machine
+
+No, MAME (Multiple Arcade Machine Emulator) is not designed to be used as a
+general-purpose virtual machine. While MAME can emulate a wide variety of arcade
+machines and some other systems, its primary purpose is for preserving and emulating
+those specific systems, not for creating custom virtual machines for general use.
+
+https://wiki.mamedev.org/index.php/System-Specific_Setup_and_Information
+
+Systems
+- 4004 Nixie Clock (4004clk)
+- ABC 1600
+- AMI 486 Clone PC (ct486)
+...
+
 ==================== faq
 
 ? 为什么很多汇编代码的关键字都是大写
 ! 汇编时代的文本编辑器没有语法高亮
 - 键盘没有小写按键的时期
 - masm 加入大量毫无章法的关键字时期, 这时候一般的语法高亮也没啥用了
-
-==================== 欠缺的内容
-
-x86, x64 protected mode ring0                           驱动程序?
-8086, x86, x64 without os                               如何编译是个问题, 在另外的系统里编译?
-intel itanium architecture (formerly called IA-64)      这个还有必要吗? 我也没这 cpu 啊
 
 ==================== 相关知识
 
@@ -213,8 +562,5 @@ http://visual6502.org/JSSim/index.html
 
 Ben Eater 通过给 cpu 连接一个很慢的时钟来展示 cpu 的工作步骤, 并展示了很多其他内容
 https://www.youtube.com/playlist?list=PLowKtXNTBypFbtuVMUVXNR0z1mu7dp7eH
-
-Ralf Brown's Interrupt List
-http://www.ctyme.com/rbrown.htm
 
 

@@ -250,5 +250,158 @@ stack   ends
 ```
 
 
+## windows
+
+**入口**
+
+coff 希望入口标签以下划线开头, warning A4023:with /coff switch, leading underscore required for start address
+
+link 需要 -subsystem, 没有指定时尝试从入口标签推导它, 规则是
+
+- _main 是 console, _WinMain@16 是 windows, 区分大小写; link 不认 16 位汇编常用的 start
+- 入口不是上面的两个标签时报错 LINK : fatal error LNK1221: 无法推导出子系统，必须定义它
+
+**段属性**
+
+- 16 位程序所有内存都是可执行-读写; 32 位 pe 的段对应节 (section), 具有单独的执行, 读, 写属性
+- 32 位程序的段需要标记为 flat
+
+**节属性**
+
+- link 认识段名 _TEXT 和具有 "code" 类的段, 对应的节的属性是可执行-只读
+- link 认识段名 _DATA, _DATA 和 link 不认识的段对应的节的属性是不可执行-读写
+- editbin 可以修改节的属性
+
+> http://masm32.com/board/index.php?topic=602.15 sinsi August 22, 2012, 06:36:17 PM<br>
+.code expands to "_TEXT segment public"<br>
+.data expands to "_DATA segment public"
+
+**windows api**
+
+proto near32 stdcall
+
+**退出**
+
+必须调用 ExitProcess, ret 只结束当前线程. 返回值放 eax.<br>
+https://stackoverflow.com/questions/39904632/why-is-exitprocess-necessary-under-win32-when-you-can-use-a-ret
+
+```
+; ml -Foout/ dd.masm -Feout/
+
+_TEXT   segment flat
+_main:
+
+        includelib kernel32.lib
+GetStdHandle    proto near32 stdcall :dword
+WriteConsoleA   proto near32 stdcall :dword, :dword, :dword, :dword, :dword
+
+        push    -11 ; -11 = STD_OUTPUT_HANDLE
+        call    GetStdHandle ; sets eax on return
+
+; HANDLE hConsoleOutput, const VOID *lpBuffer, DWORD nNumberOfCharsToWrite,
+; LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved. push backwards
+        push    0
+        push    offset dwd
+        push    sizeof s
+        push    offset s
+        push    eax
+        call    WriteConsoleA
+
+        ret
+_TEXT   ends
+
+data    segment flat
+s       byte    "32-bit program compiled with masm <insert @version here>"
+dwd     dword   ?
+data    ends
+
+        end     _main
+```
+
+## crt
+
+windows crt 程序属于 win32 程序, crt 有额外要求
+
+**入口**
+
+- crt 连接 crt lib, 这里面有入口, 所以使用 crt 的程序 end 不能后跟标签
+- crt 入口要以 cdecl 调用 _main, 所以要么在程序里定义 `main proc c`, 要么定义 public 标签 _main
+
+**c 运行时函数** proto near32 c, 既然是 cdecl, 调用方要清理栈
+
+```
+; 从命令行生成时需要 includelib msvcrt.lib, 从 visual studio 2019 生成时不需要,
+; 因为 vs 给 link 传的一堆 lib 里已经包含了
+; includelib legacy_stdio_definitions.lib 可能是以前版本的 vs 或 ml 需要
+;
+; ml -Foout/ dd.masm -Feout/
+
+_TEXT   segment flat
+
+        includelib msvcrt.lib
+puts    proto   near32 c
+
+main    proc    c
+        push    offset sz
+        call    puts
+        add     esp, 4
+        ret
+main    endp
+_TEXT   ends
+
+data    segment flat
+sz      byte    "hello", 0
+data    ends
+
+        end
+```
+
+## 早期 crt 代码
+
+早期的 crt/puts 代码使用简化段, 现在看 .686p, .code 等实在是莫名其妙, 所以不再使用
+
+```
+; ml -Foout/ dd.masm -Feout/
+
+includelib msvcrt.lib
+
+.386
+.model  flat, c
+
+.data
+sz      byte    'hello', 0
+
+.code
+
+puts    proto
+
+main    proc
+        push    offset sz
+        call    puts
+        add     esp, 4
+
+        ; esp, ecx 现在也能用来寻址了
+        add     eax, [esp]
+
+        ; error A2031: must be index or base register
+        ;add     ax, [sp]
+        ;mov     ax, [cx]
+        mov     bp, sp
+
+        ; error A2155: cannot use 16-bit register with a 32-bit address
+        ;add     ax, [bp]
+
+        ; 0xC0000096: Privileged instruction
+        ; 2019.7.1, masm 14.21.27702.2, win10 执行时没任何错误, 但估计指令也不会生效
+        ;sti
+        ;cli
+
+        ret
+main    endp
+
+        end
+```
+
+
 
 
