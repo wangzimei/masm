@@ -81,7 +81,7 @@ xxx ends
     end s
 ```
 
-上面是 com 文件. com 文件加载后第一句话放在 0x100 而不是 0, `org 256` 告诉 masm 此后的语句地址从 256 = 0x100 开始算, 这样代码在汇编之后标签的值才能匹配它在运行时的值. 代码里有两个标签, s 和 msg. s 不需要 org 语句因为只有 end 使用它, 而 end 不需要考虑标签加载后的值; msg 被其他代码使用, 必须用 org 修正它的值. 可以看到 s 和 msg 定义的方式不一样, msg 这种方式定义了数据标签, 或叫变量. 变量在 masm 代码里表示以变量地址开始的一段内存里保存的值, 要获得变量的标签值或者说变量的地址或者说变量的偏移需要在前面写 offset, 后面会看到地址由 segment 和 offset 组成, `offset msg` 在汇编时替换为 msg 的偏移. 这里用 `int21h/ah9` dos 函数打印字符串, 该函数打印从 ds:dx 开始的串, ds 是 segment, dx 是 offset, 在遇到第一个 `$` 时结束打印. msg 放在 com 文件唯一的段里, 段地址是 `seg msg`, com 文件执行时 ds 等于该段所以无需修改 ds.
+上面是 com 文件. com 文件加载后第一句话放在 0x100 而不是 0, `org 256` 告诉 masm 此后的语句地址从 256 = 0x100 开始算, 这样代码在汇编之后标签的值才能匹配它在运行时的值. 代码里有两个标签, s 和 msg. s 不需要 org 语句因为只有 end 使用它, 而 end 不需要考虑标签加载后的值; msg 被其他代码使用, 必须用 org 修正它的值. 可以看到 s 和 msg 定义的方式不一样, msg 这种方式定义了数据标签, 或叫变量. 变量在 masm 代码里表示以变量地址开始的一段内存里保存的值, 要获得变量的标签值或者说变量的地址或者说变量的偏移需要在前面写 offset, 后面会看到地址由 segment 和 offset 组成, `offset msg` 在汇编时替换为 msg 的偏移. 这里用 `int21h/ah9` dos 函数打印字符串, 该函数打印从 ds:dx 开始的串, ds 是 segment, dx 是 offset, 在遇到第一个 `$` 时结束打印. msg 放在 com 文件唯一的段里, 段值是 `seg msg`, com 文件执行时 ds 等于该段所以无需修改 ds.
 
 ```
 ; ml -Foout\ dd.msm -Feout\
@@ -109,7 +109,7 @@ s01 ends
     end s
 ```
 
-exe 代码定义了一个 `d01` 段用来保存数据 msg. 把 msg 放在 xxx 里也没问题. exe 加载后 ds 的值不指向保存数据的段, masm 没有像栈段那样的语法去指出数据段, exe 文件也不保存数据段的信息, 要自己在代码里修改 ds 让其指向自己定义的数据段. 8086 的段寄存器只接受通用寄存器的赋值, 所以代码里先把 seg msg 给 dx, 再用 dx 给 ds 赋值. 段名 d01 的值就是段地址, 也是其中所有变量的段地址比如 seg msg.
+exe 代码定义了一个 `d01` 段用来保存数据 msg. 把 msg 放在 xxx 里也没问题. exe 加载后 ds 的值不指向保存数据的段, masm 没有像栈段那样的语法去指出数据段, exe 文件也不保存数据段的信息, 要自己在代码里修改 ds 让其指向自己定义的数据段. 8086 的段寄存器只接受通用寄存器的赋值, 所以代码里先把 seg msg 给 dx, 再用 dx 给 ds 赋值. 段名 d01 的值就是段值, 也是其中所有变量的段值比如 seg msg.
 
 ## 8086 cpu
 
@@ -168,39 +168,28 @@ q
 ```
 
 有
-```
-c6      opcode
-06      modr/m
-0002    displacement
-03      immediate
-c7      opcode
-06      modr/m
-0301    displacement
-0300    immediate
-```
+
+opcode | modr/m | displacement | immediate
+-|-|-|-
+c6     | 06     | 0002         | 03
+c7     | 06     | 0301         | 0300
 
 为什么?
 
 1. c6 ...
-
     - 从 http://ref.x86asm.net/coder32-abc.html 找指令 mov. `byte ptr [0200]` 是 8 位内存, 03 是立即数, 查看网站, 发觉 8 位内存应该对应 m8; 立即数自然也是 8 位, 应该对应 imm8. 于是找 move m8, imm8, 找到这条 `MOV r/m8 imm8 C6`. 或者
     - 从 http://ref.x86asm.net/coder32.html 找操作码 c6. 我不确定 c6 是操作码还是前缀, 但网页已经区分了它们. 找到 `MOV r/m8 imm8`
 
     所以 c6 = MOV r/m8 imm8. r/m8 需要 modr/m, 所以 c6 后面的 06 是 modr/m 字节.<br>
     https://stackoverflow.com/questions/8518917/x86-mov-opcode-disassembling
-
-1. c6 06 ...
-
+1. c6 06 ...<br>
     http://ref.x86asm.net/coder32.html#modrm_byte_16 的表把 modr/m 字节分成 3 部分: 最上面的 reg/opcode 占 3 位, mod 列占 2 位, r/m 列占 3 位. 值 06 的周围如下:
-
     ```
                                     000
     Effective Address   Mod R/M     Value of ModR/M Byte (in Hex)
     disp16              00  110     06
     ```
-
     整张表都是计算有效地址的各种方式, 06 对应 disp16. disp16 是 16 位的 displacement, 单独的 disp16 说明用下 2 个字节共 16 位计算出地址, 不涉及 bx, di 等寄存器. 因此 `mov r/m8 imm8` 对应机器码 `c6 06 hhhh hh`. 从机器码里依次取 2 字节和 1 字节, 得到
-
 1. c6 06 0002 03 ...
 
 有
@@ -215,23 +204,17 @@ c7      opcode
 
 `c70603010300 mov word ptr [0103], 0003`, 有 `C7 MOV r/m16/32 imm16/32`, 16 位代码排除 m32 和 imm32 得到 c7 = mov r/m16 imm16, 前面知道 06 是 disp16, 所以 c7 06 = mov m16 (由 disp16 指定) imm16, 从 c7 06 往后取 2 个 16 位, 分别是 disp16 = 0301, imm16 = 0300.
 
-**byte code**
+相关术语
 
-有些编译器把代码编译为字节码, 由该语言的虚拟机执行. 比如 java.
-
-**microcode**
-
-a.k.a. μcode https://en.wikipedia.org/wiki/Microcode
-
-完全位于 isa (instruction set architecture) 的一侧, 汇编看不到. 各方面都和汇编差不多, 不是每种 cpu 都有.
-
-以前的机器语言就是 cpu 执行的语句, 语句由 isa 定义. 后来 (around 1950) 可能是指令复杂了, 或想兼容以前的代码 (从而不可移植的汇编也可移植了), 或任何原因, 机器语言要翻译为 microcode 让 cpu 执行, 这就把机器语言变成高级语言了.
-
-**micro-operation**
-
-a.k.a. micro-ops, μops, micro-actions https://en.wikipedia.org/wiki/Micro-operation
-
-主要是 intel 用, 前面说的 microcode 有很多厂商都用. 一般看到莫名其妙的术语扎堆儿出现, 基本就是 intel.
+- byte code
+    - 有些编译器把代码编译为字节码, 由该语言的虚拟机执行. 比如 java
+- microcode
+    - a.k.a. μcode https://en.wikipedia.org/wiki/Microcode
+    - 完全位于 isa (instruction set architecture) 的一侧, 汇编看不到. 各方面都和汇编差不多, 不是每种 cpu 都有
+    - 以前的机器语言就是 cpu 执行的语句, 语句由 isa 定义. 后来 (around 1950) 可能是指令复杂了, 或想兼容以前的代码 (从而不可移植的汇编也可移植了), 或任何原因, 机器语言要翻译为 microcode 让 cpu 执行, 这就把机器语言变成高级语言了
+- micro-operation
+    - a.k.a. micro-ops, μops, micro-actions https://en.wikipedia.org/wiki/Micro-operation
+    - 主要是 intel 用, 前面说的 microcode 有很多厂商都用. 一般看到莫名其妙的术语扎堆儿出现, 基本就是 intel
 
 ### operands
 
@@ -261,7 +244,7 @@ mm = mm0 ~ mm7, xmm = xmm0 ~ xmm7, sreg = segment register.
 
 实模式用 segment:offset 表示地址, 偏移是相对于段的偏移. segment 和 offset 单独都表示不了地址, offset 经常隐含依赖一个 segment 以表示地址. intel 把 segment 和 offset 叫逻辑地址, segment:offset 叫物理地址; 逻辑应该是指发明 “逻辑地址” 这个词的人的逻辑, 正常的逻辑不会把部分说成是整体.
 
-前面说 offset 经常隐含依赖一个 segment, 它俩共同计算出地址. intel 提供了显式指定段寄存器的语法, 叫段寄存器重写.
+前面说 offset 经常隐含依赖一个 segment, 它俩共同计算出地址. intel 提供了显式指定段寄存器的语法, 叫段覆盖.
 
 **rel8, rel16, rel32**
 
@@ -284,7 +267,7 @@ scale   | n/a, see below                            | 1, 2, 4, 8
 
 **memory**
 
-[effective address] = memory. 默认的段寄存器是 ds, 重写时有些汇编器可以省略方括号, debug.com 不行, 并且它写法不同, es: 不是写在 memory 前而是写在整个语句前. memory operand 需要先计算 effective address, 结果要么保存在某个位置要么是某组电路的输出, intel 隐藏了这个位置. lea 指令 load effective address 就使用了该位置.
+[effective address] = memory. 默认的段寄存器是 ds. memory operand 需要先计算 effective address, 结果要么保存在某个位置要么是某组电路的输出, intel 隐藏了这个位置. lea 指令 load effective address 就使用了该位置.
 
 - **m8/16/32/64 = m8 or m16 or m32 or m64**<br>
     数字指 opcode 从偏移处读取的长度, m8 是 byte, m32 是 dword, 等
@@ -364,7 +347,7 @@ name (x86/x64)  | in code       | count | bits  | notes
 -|-|-|-|-
 general purpose | rax-r15       | 8/16  | 32/64 | 整数, 地址等
 flags           |               | 1     | 32/64 | 算术, 控制状态
-segment         | cs-gs, ss     | 6     | 16    | 段地址, 描述符选择
+segment         | cs-gs, ss     | 6     | 16    | 段, 描述符选择
 x87             | st(0)-st(7)   | 8     | 80    | 扩展精度浮点运算
 mmx             | mm0-mm7       | 8     | 64    | 整数 simd. same register file as above
 control, status, tag word      || 3     | 16    | fpu
@@ -373,16 +356,16 @@ avx, avx2       | ymm0-ymm15    | 8/16  | 256   | simd. same register file as ab
 avx-512         | zmm0-zmm31    | 0/32  | 512   | simd. same register file as above
 mxcsr           |               | 1     | 32    | simd vector status
 opmask          | k0-k7         | 8     | 16    | avx-512 conditional vector processing
-control         | cr0-cr15      | 4     | 32/64 | cr1, cr5-cr15 未使用
+control         | cr0-cr15      | 4     | 32/64 | cr1, cr5-cr7 未使用. 8~15: amd64
 xcr0            |               | 1     | 64    | extended control
-debug           | dr0-dr7       | 8     | 64    | 调试
+debug           | dr0-dr15      | 8     | 32/64 | 调试. 8~15: amd64
 gdtr, idtr      |               | 2     | 48/80 | 全局, 中断描述符表. 这 2 个和下 2 个是 memory management
 ldtr, tr        |               | 2     | 16    | 局部描述符表, 任务寄存器. 有 48/80 + ? 的影子寄存器
 msr             | (by index)    | many  | vary  | 模型特定寄存器
 
 intel cpu 还能访问第 3 种存储, port. port 是其他设备的 register, 理论上也可以对应其他设备的 memory (通过内存地址映射, memory 也可以对应其他设备的 register 和 memory). 因此前面只把 register 和 memory 算作存储, 没算入 port. register 和 memory 的区别也只在容量和速度.
 
-指代存储位置的名字叫变量. 很多汇编器支持用 label 给内存位置取名, 这 label 就是变量. 变量在其有效期内始终指代某个位置. 使用变量是两步操作, 读的时候先读位置再读数据, 写的时候先读位置再写数据.
+指代存储位置的名字叫变量. 寄存器就是变量; 很多汇编器支持用 label 给内存位置取名, label 也是变量; 代表内存地址的数字也是变量. 变量在其有效期内始终指代某个位置. 使用变量是两步操作, 读的时候先读位置再读数据, 写的时候先读位置再写数据.
 
 术语 | 含义
 -|-
@@ -396,49 +379,55 @@ intel cpu 还能访问第 3 种存储, port. port 是其他设备的 register, �
 
 8086, 8088, 80186, 80188 是 16 位寄存器和 20 位地址线 https://en.wikipedia.org/wiki/RAM_limit
 
-段寄存器用来确定内存地址. 8086 能寻址 20 位, 16 位寄存器容纳不下 20 位地址, intel 就规定用两个 16 位值, 段和偏移, 表示一个 20 位地址, 写作 segment:offset, segment * 16 + offset = 20 位地址. 段和偏移分别保存在段寄存器和有效地址里, 有效地址只能用通用寄存器和立即数算出, 也就是说, 不能用两个通用寄存器或两个段寄存器合起来表示地址. 我既不清楚为什么把乘以 16 的那个部分叫 segment, 也不清楚为什么做成把一个 16 位值乘以 16. 由公式可知,
+段寄存器用来确定内存地址. 8086 寻址 20 位, 16 位寄存器装不下 20 位地址, intel 就用 2 个 16 位值, 段和偏移, 表示一个 20 位地址, 写作 segment:offset, segment * 16 + offset = 20 位地址, 每次访问内存都要先拼出来 20 位地址. 段和偏移分别保存在段寄存器和有效地址里, 有效地址只能用通用寄存器和立即数算出, 也就是说, 不能用两个通用寄存器或两个段寄存器合起来表示地址. 我既不清楚为什么把乘以 16 的那个部分叫 segment, 也不清楚为什么做成把一个 16 位值乘以 16. 由公式可知,
 
-- 段地址不连续, 每个段的地址都是 16 的整数倍; 偏移地址连续
-- offset 的大小决定段的大小, 是 2 ** 16 = 65536 = 64k
+- 段值不连续, 每个段都是 16 的整数倍; 偏移连续
+- offset 的大小决定段大小, 是 2 ** 16 = 65536 = 64k
 - 2 个 16 位寄存器共 32 位表示 20 位地址, 多出来的 12 位造成很多重复的地址
 - 两个段的重叠部分至多 64k - 16 - 16 = 65504; 不重叠的话 640k = 10 个段, 1024k = 16 个段
 - 20 位最大值是 0xfffff, segment:offset 最大值是 0xffff << 4 + 0xffff = 0x10ffef, 多出来 0xfff0
 
-有 4 个段寄存器 cs, ds, es, ss, cpu 占用 cs 和 ss 这 2 个. 386 加了 fs, gs 段寄存器和 lfs, lgs, lss 指令.
+4 个段寄存器 cs, ds, es, ss 都由 cpu 隐含使用, 用户要表示地址时可用的往往只有 ds 和 es, 用之前还往往要先保存原来的值.
 
-- 代码 cs:ip
-    - a.k.a. program counter (pc), instruction pointer (ip), instruction address register (iar), instruction counter
-    - 修改 cs 和 ip 必须一次性完成, 专有数据类型 far pointer (ptr16:16/32)
-- 栈 ss:sp
-    - 就是数据结构里的栈, 专有指令 push, pop
-    - ss:sp 保存的内存地址叫栈顶. push arg 从 sp 减去 sizeof arg, 然后把 arg 写到栈顶
-    - sp 保存 offset 但不能用于寻址, 要修改栈顶只能先 mov bp, sp 然后修改 [bp]. 之所以用 bp 是因为 bp 默认段 ss, 可以省一个段寄存器重写
-    - 修改 ss 和 sp 不需要一次性完成. 但如果两条修改指令之间发生了中断而进入中断服务例程就会使用栈, 这时的栈只修改了一半, 就会出错. 所以 286+ 的 mov ss, r/m16 的下一条指令无法中断以便放置 mov sp, xxx, 就可以省去 cli 指令 (cli 屏蔽 "可屏蔽中断", 听名字就是个残废)
-- 除 cs:ip 和 ss:sp 外的都是数据, 比如 cs:di, ds:bp, es:123, ss:bx
-    - 代码里往往需要标记地址但有不同的写法, 可能是 cs:[di], ds:[bp], es:123, ss:[bx]
-    - 可以用来寻址的寄存器是 bp, bx, si, di; 省略段寄存器时 [bp] 默认 ss, 其余默认 ds; [immediate] 默认 ds
-    - 源数据 ds:si 和目的数据 es:di 是两个常见的说法
-    - `lds/les r16/32, m16:16/32`, `lfs/lgs/lss r16/32/64, m16:16/32/64` 用 `jmp m16:16` 修改 cs:ip 的方式修改 ds/es/fs/gs/ss:reg, 没有 lcs. 这些指令只是增加 m16:16/32/64 的利用率; 修改数据地址无须一次性完成, 可以用两条指令依次修改. 这里的 m16:16 就是 m16&16
+- cs
+    - cs:ip a.k.a. program counter (pc), instruction pointer (ip), instruction address register (iar), instruction counter
+    - 修改 cs 和 ip 必须一次性完成, 专有数据类型 far pointer 即 ptr16:16/32
+    - 数据在 cs 段时可以用 cs 段覆盖访问它, `cs: mov bx, [123]` 读取 cs:123
+- ds
+    - 8086 可以用来计算有效地址的寄存器是 bp, bx, di, si. bp 做基址时默认段 ss, 其余默认段 ds
+- es
+    - 串指令
+- ss
+    - 2 个寄存器 "ss:sp" 保存 1 个内存位置 "栈顶"
+    - 专有指令 push, pop. push arg 从 sp 减去 sizeof arg, 然后把 arg 写到栈顶
+    - 286+ 的 mov ss, r/m16 的下一条指令无法中断以便放置 mov sp, xxx, 就可以省去 cli 指令
+
+相关知识
+
+- 8086 指令 `lds/les r16/32, m16:16/32`
+- 源数据 ds:si 和目的数据 es:di 是两个常见的说法
+- 386 寄存器 fs, gs, 指令 `lfs/lgs/lss r16/32/64, m16:16/32/64`
+- 没有 lcs
 - 386 通用寄存器是 32 位, 保护模式下寻址也是 32 位, 但仍使用段寄存器, 用 16 + 32 位表示 32 位地址, 并且更加复杂, 需要查表
 - 长模式的 fs, gs 从 msr 取 base, 其余 segment 不参与地址计算
 
 ### 标志寄存器
 
-bit | flag | meaning | 0 | 1
+bit | meaning | flag | 0 | 1
 -|-|-|-|-
-0  | cf | carry              | nc | cy
-2  | pf | parity             | po | pe
-4  | af | auxiliary carry    | na | ac
-6  | zf | zero               | nz | zr
-7  | sf | sign               | pl | ng
-8  | tf | trap (single step)
-9  | if | interrupt enable   | ei | di
-10 | df | direction          | up | dn
-11 | of | overflow           | nv | ov
+0  | carry              | cf | nc | cy
+2  | parity             | pf | po | pe
+4  | auxiliary carry    | af | na | ac
+6  | zero               | zf | nz | zr
+7  | sign               | sf | pl | ng
+8  | trap (single step) | tf
+9  | interrupt enable   | if | ei | di
+10 | direction          | df | up | dn
+11 | overflow           | of | nv | ov
 
 ### jmp short, near, far, long
 
-- intel 不允许 ip/eip/rip 当操作数, 指令寄存器通过 jmp (call, ret, ...) 修改
+- 不存在操作数 ip, eip, 有只读的 rip; 指令寄存器通过 jmp (call, ret, ...) 修改
 - 8086, 8088 有 pop cs, opcode 0xf 和 mov cs, reg/mem, opcode 8e xxx. 8086 online 模拟器 https://idrist11.github.io/8086-Online-IDE/app.html
 - arm32 允许读写 ip, arm64 不允许
 
@@ -647,9 +636,7 @@ DS=1425  ES=1425  SS=1425  CS=1337  IP=0000   NV UP EI PL NZ NA PO NC
 
 ### interrupt
 
-按设计, cpu 每执行一条或一组指令就查看是否有中断请求, 有的话就暂停当前执行的指令去执行请求指出的指令, 执行完可能会继续执行之前暂停的指令.
-
-已知 cpu 通过内存地址映射或端口去通知其他硬件, 那其他硬件如何通知 cpu 呢? 不让 cpu 去频繁查询内存或端口来获取硬件的通知, 因为频繁查询的效率低, 访问端口的速度慢. 其他硬件通知 cpu 的办法是生成一个中断. intel interrupts 占用下列术语; arm 还占用 reset.
+cpu 如果闷头执行指令就体现不出响应性, 响应是响应周边硬件的输入. 由于查看硬件速度较慢 intel 采用中断, cpu 查看中断的速度较快, 硬件有输入时通过中断系统放置一个标志, cpu 看到标志就暂停当前执行的指令转去执行和这个标志相关的指令, 完成后可能会回到之前暂停的指令. intel interrupts 占用下列术语; arm 还占用 reset.
 
 - exceptions. generated by cpu
     - faults. return address = the instruction that generated the exception
@@ -658,7 +645,7 @@ DS=1425  ES=1425  SS=1425  CS=1337  IP=0000   NV UP EI PL NZ NA PO NC
 - Interrupt Request (IRQ) or Hardware Interrupt
     - IRQ Lines, or Pin-based IRQs
     - Message Signaled Interrupts
-- Software Interrupt. generated by int n instruction
+- Software Interrupt. generated by int n, int3, into instruction
 
 `cli` 让 cpu 此后不响应可屏蔽中断; 286+ 上 `mov ss, reg` 的下一条指令无法中断, 用于在 mov ss 之后 mov sp.
 
@@ -689,9 +676,9 @@ q
 int3    | 0xcc          | 0xcc      | error A2008: syntax error : int3
 int 3   | 0xcd 3        | 0xcc      | 0xcc
 
-### n-in-1 instructions
+### instruction variants
 
-advantage of 1 instruction: it is atomic.
+n-in-1. 1 instruction is always atomic.
 
 n | 1 | comments about the 1
 -|-|-
@@ -795,8 +782,6 @@ Lex0:           mov     bp, tempreg     ;Ptr to current act rec.
                 sub     sp, Locals      ;Allocate local storage
 ```
 
-### 1/n instructions
-
 1 | steps | 1/n
 -|-|-
 sub dst, src | dst -= src           | -
@@ -812,9 +797,7 @@ dst = src | 0 | 1
 dst < src | 1 | 0
 dst > src | 0 | 0
 
-### mnemonic a.k.a.s
-
-.|.|.|.
+a.k.a.s ||||
 -|-|-|-
 fwait, wait     | (xchg ax, ax), nop
 sete, setz      | setne, setnz
@@ -1097,13 +1080,13 @@ ibm 建议 isa 设备映射到下列地址 (以及未列出的 port, irq, dma), 
 
 ```
     hex
-f0000–fffff     64kb    system rom-bios and rom-basic
-e0000–effff     64kb    other use (pcjr cartridges, lim ems)
-c8000–dffff     96kb    other use (pcjr cartridges, lim ems)
-c0000–c7fff     32kb    video bios rom
-b8000–bffff     32kb    video ram. cga, ega, vga text mode; cga low-res
-b0000–b7fff     32kb    video ram. mda text mode; cga hi-res
-a0000–affff     64kb    video ram. graphics modes
+f0000-fffff     64kb    system rom-bios and rom-basic
+e0000-effff     64kb    other use (pcjr cartridges, lim ems)
+c8000-dffff     96kb    other use (pcjr cartridges, lim ems)
+c0000-c7fff     32kb    video bios rom
+b8000-bffff     32kb    video ram. cga, ega, vga text mode; cga low-res
+b0000-b7fff     32kb    video ram. mda text mode; cga hi-res
+a0000-affff     64kb    video ram. graphics modes
 ```
 
 - https://wiki.osdev.org/ISA
@@ -1183,6 +1166,11 @@ C000:2A60  00 07 04 02 FF 0E 00 00-00 00                     ..........
 
 - [bios vga fill](#bios-vga-fill)
 
+resources on vga
+
+- VGA programming lessons https://joco.homeserver.hu/vgalessons/
+- Graphics Programming Black Book https://www.drdobbs.com/parallel/graphics-programming-black-book/184404919
+
 #### 集成显卡
 
 - 集成在主板上
@@ -1199,32 +1187,114 @@ C000:2A60  00 07 04 02 FF 0E 00 00-00 00                     ..........
 
 dos 是单任务操作系统, 单任务指所有程序依次执行. 启动 dos 后执行 command.com; 在 command.com 里启动程序后执行该程序; command.com 保留的内存, 硬盘等各种存储都还在, 但不再执行它的代码, 相当于暂停; 程序退出后继续执行 command.com. 多任务有多种可能. 可能是单个 cpu 把时间分成小段, 轮流执行每个段里不同程序的代码; 也可能是多个 cpu 把时间分成小段, 执行不同程序的代码; 也可能是多个 cpu 各自执行不同程序的代码. 不清楚细节.
 
-为维持 dos 正常运行, 程序要解决和它的衔接问题. 连接器确保代码生成的程序能正常启动, 退出时程序要通知 dos 让其继续执行.
-
 #### program
 
 称呼 | 意思
 -|-
-executable  | 可执行文件. 显然里面存放了 cpu 指令. 往往在操作系统里执行
+executable  | 可执行文件. 显然里面存放了 cpu 指令, 往往在操作系统里执行
 process     | 进程. 放到到内存打算执行的 executable, 往往有操作系统为其做准备工作; 放到内存但不打算执行则不是 process
 program     | 程序. executable or process
 
-dos 在执行 program 时用数据结构 Program Segment Prefix 存储程序状态, psp 类似 CP/M 里的 Zero Page https://en.wikipedia.org/wiki/Program_Segment_Prefix , 非 dos 不一定有 psp http://www.tavi.co.uk/phobos/exeformat.html . 如果可执行文件不大于 (段 - psp - word 0) = 64k - 0x100 - 2 = 65278, 载入内存时放在一个段里就行, com 文件就是这样, 前 0x100 是 psp 后面是可执行文件, 从 0x100 开始执行. 如果文件 > 65278 一个段就放不下了, dos 发明了 mz exe, 这种文件把代码分成好多不大于 64k 的块; 加载时 psp 单独放在第一个段, 其余每个块对应一个段.
+为维持 dos 正常运行, 程序要解决和它的衔接问题. 连接器确保生成的程序能正常启动, 退出时程序要通知 dos 让其继续执行.
 
-program 启动时代码, 栈, 数据段是下列值, 其中 1. seg psp 2. from file header 3. from file header, relocated
+- Program Startup & Exit http://www.techhelpmanual.com/829-program_startup___exit.html
+- dos 在执行程序时用数据结构 [Program Segment Prefix](#psp) 存储程序状态
+- 非 dos 不一定有 psp http://www.tavi.co.uk/phobos/exeformat.html
 
--| cs | ds | es | ss | ip | sp | 通用寄存器
+程序启动时段是下列值, 其中 1. seg psp 2. from file header 3. from file header, relocated.
+
+|| cs | ds | es | ss | ip | sp | 通用寄存器
 -|-|-|-|-|-|-|-
 com | 1. | 1. | 1. | 1. | 0x100 | 0xfffe | http://www.fysnet.net/yourhelp.htm
 exe | 3. | 1. | 1. | 3. | 2. | 2. | http://www.tavi.co.uk/phobos/exeformat.html
 
-psp 常用于获取程序的命令行参数, 或者叫 command-line tail. 程序开始执行时 ds = es = seg psp, 也有 dos api 用于获取 psp.
+dos 提供两个用于退出的函数,
+
+- `dos 1` int21h/ah0, 别名 int20h, 机器码更短. 要求 cs 保存 psp 的段值
+- `dos 2` int21h/ah4ch. 不使用 cs, al 代表返回值
+- https://retrocomputing.stackexchange.com/questions/16891/difference-between-int-0x20-and-int-0x21-0x4c
+- https://stackoverflow.com/questions/12591673/whats-the-difference-between-using-int-0x20-and-int-0x21-ah-0x4c-to-exit-a-16
+- `win32` `not dos` _ExitProcess@4
+
+dos 执行 com 文件时把整个文件拷贝到 1 个 64k 的内存段里, 段的前 256 字节是 psp 所以 com 文件最大是 64k - 256 = 65,280 = 0xff00 bytes. com 的起始 sp 是 0xfffe 所以 65,280 的后 2 字节肯定会被覆盖, 测试表明在 debug.com 里覆盖 4 字节, 在 dosbox-x debugger 里是 6 字节, 未测试直接执行的情况. 测试程序:
 
 ```
-; 参数会去掉末尾的空白
-; psp 0x80        1 byte    number of bytes of command-line tail
-; psp 0x81~0xff 127 bytes   command-line tail, terminated by a 0xd
-;
+; ml -Foout\ dd.msm -Feout\ -AT
+
+xxx segment
+    org 256
+s:
+    org 65520
+    byte 16 dup ('*')
+xxx ends
+    end s
+```
+
+fat binary https://en.wikipedia.org/wiki/Fat_binary 基本上是把多个功能一样的程序放到一个文件里, 开头的代码选择使用其中一个. 开头的代码即入口代码是在几个系统中都有效但功能不同的指令, 比如 `c3 3 1` 在 8080 上是 `JP 103h`, `c3` 在 x86 上是 `ret`.
+
+dos 的 16 位 exe 又叫 mz, 开头的两个字节是 4D 5A, ascii MZ. windows 的 32/64 位 exe 又叫 pe = portable executable, 用于 executables, object code, dlls, font 等文件.
+
+- 为兼容 msdos 和旧版 windows, pe 保留 mz 头 https://blog.kowalczyk.info/articles/pefileformat.html
+- https://thestarman.pcministry.com/asm/debug/DOSstub.htm pe 的 mz 头后面是个 16 位 dos 存根程序, 一般显示:
+    ```
+    (Borland tlink32)   This program must be run under Win32.
+    (ms link?)          This program cannot be run in DOS mode.
+    (???)               This program requires Microsoft Windows.
+    ```
+
+有些 exe 文件使用 com 扩展名 (dos 4+?). 加载程序查看文件的前几个字节, 如果发现是 exe 就按 exe 执行, 否则按 com 执行:
+
+- https://retrocomputing.stackexchange.com/questions/14520/how-did-large-com-files-work
+- https://github.com/microsoft/MS-DOS/blob/master/v2.0/source/EXEC.ASM#L331
+
+DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE 是以 .com 结尾的 exe, 因为老的 bat 文件可能使用命令的全名, win nt 为兼容这些 bat 就保留了前述 exe 的原名. 执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo 依次找 `foo`, `foo.com`, `foo.exe`. win nt 环境变量 PATHEXT 可以指定扩展名顺序, 默认仍然是 com 先于 exe.
+
+#### psp
+
+- https://en.wikipedia.org/wiki/Program_Segment_Prefix
+- 0~1, 2 bytes, 0x(cd 20) = int 0x20
+- 2~3, word, 程序占用的内存的下一字节即空闲内存的段值
+- 0x(2c-2d), word, environment segment. 0 和 0xffff 表示没有
+- 0x(38-3b), dword, pointer to previous psp
+- 0x80, 1 byte, number of bytes of command-line tail
+- 0x(81-ff), 127 bytes, command-line tail, terminated by a 0xd
+
+environment 类似下面, 其中 dos 3.0+ 的 word 1 可以是任意值, 通常是 1.
+
+```
+byte 'COMSPEC=Z:\COMMAND.COM', 0
+byte 'PROMPT=$P$G', 0
+byte 'PATH=c:\masm611\bin;c:\masm611\binr;Z:\', 0
+byte 0
+------------ dos 3.0+
+word 1
+byte 'C:\OUT\DD.COM', 0
+byte 0
+```
+
+查看 psp 的一些值:
+
+```
+debug z:command.com
+-d 0 l4
+0E28:0000  CD 20 FF 9F                                       . ..
+-d 2c l2
+0E28:0020                                      D8 0D                     ..
+-d dd8:0
+0DD8:0000  43 4F 4D 53 50 45 43 3D-5A 3A 5C 43 4F 4D 4D 41   COMSPEC=Z:\COMMA
+...
+-d
+...
+0DD8:00E0  74 00 00 01 00 5A 3A 5C-43 4F 4D 4D 41 4E 44 2E   t....Z:\COMMAND.
+0DD8:00F0  43 4F 4D 00 00 00 00 00-00 00 00 00 00 00 00 00   COM.............
+-d 38 l4
+0E28:0030                          FF FF FF FF                       ....
+-q
+```
+
+psp 至多保存 126 bytes 的命令行参数, 参数会去掉末尾的空白. ms-dos 7.0 environment variable %CMDLINE% 保存更长的参数.
+
+```
 ; 用 debug 加载文件, 打印其命令行参数
 ;
 ; debug 可以加载一个文件并后跟参数, 叫 testfile-parameters. 如下命令
@@ -1268,71 +1338,298 @@ DS=0040  ES=1337  SS=1337  CS=1337  IP=011A   NV UP EI PL ZR NA PE NC
 -q
 ```
 
-dos 提供两个用于退出的函数,
-
-- `dos 1` int21h/ah0, 别名 int20h, 机器码更短. 要求 cs 保存 psp 的段地址
-- `dos 2` int21h/ah4ch. 不使用 cs, al 代表返回值
-- https://retrocomputing.stackexchange.com/questions/16891/difference-between-int-0x20-and-int-0x21-0x4c
-- https://stackoverflow.com/questions/12591673/whats-the-difference-between-using-int-0x20-and-int-0x21-ah-0x4c-to-exit-a-16
-- `win32` this is not dos. _ExitProcess@4
-
 示例
 
 - [从 psp 获取程序的命令行参数](#从-psp-获取程序的命令行参数)
 - [int 20h](#int-20h)
 
-#### omf, coff, mz, pe
+#### terminate but stay resident
 
-- https://en.wikipedia.org/wiki/Comparison_of_executable_file_formats
-- https://en.wikipedia.org/wiki/Relocatable_Object_Module_Format
-- https://en.wikipedia.org/wiki/COFF
-- https://en.wikipedia.org/wiki/DOS_MZ_executable
-- https://en.wikipedia.org/wiki/Portable_Executable
+- http://www.techhelpmanual.com/20-terminate_and_stay_resident__tsr_.html
 
-`omf` Relocatable Object Module Format 是对象文件的一种格式, 主要用于在 intel 80x86 上运行的软件, 源于 intel 开发的(when?) Object Module Format, 是 MS-DOS, 16-bit Windows, 16/32-bit OS/2 上最重要的对象文件格式. masm 6.11 生成的 obj 默认 omf, 可以用 -coff 选项生成 coff. masm 不支持 jmp far-pointer 比如 jmp 0ffffh:0, 需要 omf https://stackoverflow.com/questions/32706833/how-to-code-a-far-absolute-jmp-call-instruction-in-masm
+tsr, 终止但驻留. 这种程序把一些代码驻留在内存然后返回 dos. dos 提供了 2 个 api 支持 tsr:
 
-`coff` Common Object File Format 是 executable, object code, shared library 的格式, 用于 Unix 系统, 在 Unix System V 里取代了 a.out 格式. 它是 XCOFF and ECOFF 的基础, 很大程度上被 SVR4 的 ELF 取代. coff 及其变种继续用在一些 Unix-like 系统, Microsoft Windows (PE Format), EFI 环境和一些嵌入式开发系统. masm 14 生成 obj 默认 coff, -coff 和 -omf 选项生成对应格式的 obj.
+- `dos 1.0` int 27h: terminate but stay resident, 驻留至多 64k bytes
+- `dos 2.0` int21h/ah31h: terminate & stay resident, 驻留至多 64k 个 16-bytes, 接受返回值
 
-`mz` dos 的 exe 文件格式, 开头的两个字节是 4D 5A, ascii M Z, 是 16 位 exe, 比 com 格式新.
+这俩和 int21h/ah4ch 的区别是会保留 environment 和程序的前一部分. 俩均从从程序的末尾释放一些内存决定了 tsr 代码的安排方式; 均使用 psp 的一些字段决定了 tsr 一般都会保留 psp 从而多占用一点儿内存; 总之两个函数都很粗糙, 深层原因可能是 loader 不支持 tsr. tsr 程序首先要回答几个问题:
 
-`pe` Portable Executable 格式是 executables, object code, DLLs, FON Font 等文件的格式, 用于 32/64 位 windows. 可以类比 elf in Linux and most other versions of Unix 和 Mach-O in macOS and iOS. 为兼容 msdos 和旧版 windows, pe 保留 mz 头 https://blog.kowalczyk.info/articles/pefileformat.html . https://thestarman.pcministry.com/asm/debug/DOSstub.htm pe 的 mz 头后面是个 16 位 dos 存根程序, 一般显示:
+- 放啥?
+    - 最简单是驻留整个程序, 但诸如安装之类的一次性代码不会再用到, 就浪费了内存
+    - tsr 一般会劫持中断所以至少会驻留 isr 代码
+- 放哪?
+    - 为保留尽量大的连续空闲内存, 一般放常规内存的高处或低处, 不放中间
+    - dos 把程序加载到常规内存的低处, loadhigh 把程序加载到 umb, 程序自己可以随意安排位置
+    - *int21h/ah58h memory allocation options, 设置分配内存而不是加载程序时从何处取内存*
+- 何时执行?
+    - 被动. 乍一看可以公开一个函数地址供调用. 但没法保证这地址未使用, 和劫持 int 时遇到的问题一样, 结果就是抢
+    - 主动. 劫持 int 8 timer interrupt 频繁执行一部分代码
+    - 主动. 劫持 int 9 keyboard interrupt 查看是否有自己定义的加速键. 至于凭什么认领此加速键, 凭抢
+- 如何删除?
+    - int21h/ah49h free allocated memory block
+    - 如果其后又添加了其他 tsr 则即使删除, 释放的内存也不容易利用, 造成内存碎片
+    - 如果其后的 tsr 劫持了同样的 int 则不能恢复中断向量否则会破坏其后的 tsr
+
+tsr 常见操作:
+
+- 检查是否已安装
+- 释放 environment
+- 劫持 int
+- 若要在 isr 里调用软中断, 先检查条件是否满足
+    - the indos flag. can call ah 1-ch of int21h
+    - int 28h, dos idle. can not call ah 1-ch of int21h
+    - no “inbios” flag, no "int 28h for bios"
+- 可选. 切换栈. 进入 isr 时只有 cs:ip 是 isr 代码段, 其他寄存器都是被中断的程序的值
+
+检查是否已安装意味着即使未安装这检查也得能执行. 可以遍历 mcb 但常见做法是劫持某个支持空调用的中断, 安装 tsr 后用 isr 给空调用增加返回值把它变成非空调用, 没安装时空调用不会执行不必要的代码. dos 3.0 添加了中断 #0x2f, 位于 0:0xbc, 提供 print spooler services, 不使用 ah. 不知从哪个版本开始 int 2fh 加入了一些 dos 服务, 有了名字 mux interrupt. ah 的值叫 mux number, dos 保留 [0, 0xbf], 剩下的 [0xc0, 0xff] 是空调用, tsr 经常劫持 int 2fh 并在 ah = [0xc0, 0xff] 上做文章. http://www.techhelpmanual.com/681-int_2fh__multiplex_interrupt.html 讲了一个选择 mux number 的方法, 此方法在 The Art of Assembly Language Programming, DOS/16-bit edition, Chapter 18 Resident Programs 里亦有记载:
+
+- 用 ah from 0xff to 0xc0, al = 0 逐一调用 int 2fh 找出空闲值即返回值 al = 0 的 ah, 假设是 n, 让 isr 劫持 int2fh/ahn
+- n 没地方保存, 所以 isr 要对 ah = n, al = 0 返回 al = 0xff 并且设置某个自己定义的标记帮助后续判断
+- 调用自己的 isr 时为了确定 n, 用 ah from 0xff to 0xc0 逐一调用 int 2fh 并检查自己定义的标记, 如果匹配则找出了 n
+
+劫持中断向量会形成跳转链, 链上陆续判断 ah, 最终执行相应的函数即某个旧 isr.
+
+tsr 简单示例:
+
+- 劫持 mux number 0xc0 而没有按前面说的去动态选择
+- mux number 0xc0 的自定义标记是 bx = 1337. 正常 tsr 会使用字符串
+- 没有劫持其他中断. 正常 tsr 还要劫持更多
+- 命令行参数 u 直接删除 tsr, 没有考虑前面说的 "后来又驻留了其他 tsr" 的情况
 
 ```
-(Borland tlink32)   This program must be run under Win32.
-(ms link?)          This program cannot be run in DOS mode.
-(???)               This program requires Microsoft Windows.
+; ml -Foout\ dd.msm -Feout\ -AT
+
+xxx segment
+    org     256
+s:
+    jmp     transient
+
+oldIv2fh    dword   ?
+
+iv2fh   proc
+; seize int2fh/ahc0h
+; jne oldIv2fh -> error A2078: instruction does not allow FAR indirect addressing
+
+    cmp     ah, 0c0h
+    je      @f
+    jmp     oldIv2fh
+@@:                             ; switch (al)
+    cmp     al, 0
+    je      al0
+    cmp     al, 1
+    je      al1
+    iret
+
+al0:
+    mov     al, 0ffh
+    mov     bx, 1337
+    iret
+al1:                            ; psp of tsr -> ax, es
+    mov     ax, cs
+    mov     es, ax
+    iret
+iv2fh   endp
+
+transient:
+    call    isUninstall
+    jc      uninstall
+
+    call    isInstalled
+    jc      alreadyInstalled
+
+; install
+
+    assume  ds: xxx
+
+    mov     ax, 352fh           ; save iv #0x2f
+    int     21h
+    mov     word ptr oldIv2fh + 0, bx
+    mov     word ptr oldIv2fh + 2, es
+
+    mov     ax, 252fh           ; set iv #0x2f
+    mov     dx, iv2fh           ; ds is ready
+    int     21h
+
+    mov     ah, 49h             ; int21h/ah49h: Free Allocated Memory Block
+    mov     es, ds:2ch          ; psp:0x2c environment segment
+    int     21h
+
+    mov     ah, 9               ; print
+    mov     dx, sInstalled
+    int     21h
+
+    mov     dx, transient       ; int 27h: terminate but stay resident
+    int     27h
+
+sInstalled:
+    byte    'installed$'
+sAlreadyInstalled:
+    byte    'already installed$'
+sNotInstalled:
+    byte    'not installed$'
+sUninstalled:
+    byte    'uninstalled$'
+
+isInstalled proc
+    mov     ax, 0c000h
+    int     2fh
+
+    cmp     al, 0ffh
+    jne     @f
+
+    cmp     bx, 1337
+    jne     @f
+
+    stc
+    ret
+@@:
+    clc
+    ret
+isInstalled endp
+
+alreadyInstalled:
+    mov     ah, 9
+    mov     dx, sAlreadyInstalled
+    int     21h
+    ret
+
+isUninstall proc
+; check whether the first letter of the command-line argument is u or U
+
+    mov     al, ' '
+    xor     cx, cx              ; sets zf
+    mov     cl, byte ptr ds:80h
+    mov     di, 81h             ; es:di points to the start of a string
+    cld
+    repz    scasb               ; zf is ignored on the first pass of repz
+
+    jz      no
+    dec     di
+
+    cmp     byte ptr [di], 'u'
+    je      yes
+    cmp     byte ptr [di], 'U'
+    je      yes
+
+no:
+    clc
+    ret
+yes:
+    stc
+    ret
+isUninstall endp
+
+uninstall   proc
+    call    isInstalled
+    jc      @f
+
+    mov     ah, 9
+    mov     dx, sNotInstalled
+    int     21h
+    ret
+@@:
+    mov     ax, 0c001h          ; psp of tsr -> ax, es
+    int     2fh
+
+    mov     ax, 252fh           ; restore iv #0x2f
+    mov     dx, word ptr es:oldIv2fh + 2
+    mov     ds, dx
+    mov     dx, word ptr es:oldIv2fh
+    int     21h
+
+    mov     ah, 49h             ; free the memory area of tsr
+    int     21h
+
+    mov     ah, 9
+    mov     dx, cs
+    mov     ds, dx
+    mov     dx, sUninstalled
+    int     21h
+    ret
+uninstall   endp
+
+xxx ends
+    end s
 ```
 
-#### com 文件
+加载 dd.com 前先分配 environment, dd 释放掉导致自己驻留在一块空闲内存上方, 这块空闲内存在执行 mem 时分配给它的 environment.
 
-- https://en.wikipedia.org/wiki/COM_file
+```
+C:\>mem -nosummary -full
 
-演变
+Segment        Total           Name           Type
+-------  ----------------  ------------  -------------
+  0000      1,024    (1K)                interrupt vector table
+  0040        768    (1K)                BIOS data area
+  0070     15,872   (16K)  IO            system data
+  0450     10,992   (11K)  DOS           system code
+  0700        720    (1K)  COMMAND       environment
+  072e      2,464    (2K)  COMMAND       program
+  07c9      1,264    (1K)  MEM           environment
+  0819     55,248   (54K)  MEM           program
+  1597    566,896  (554K)                free
+  a000    180,224  (176K)                reserved
+  cc00     81,904   (80K)                free
 
-- Digital Equipment operating systems, 1970s: .COM was used as a filename extension for text files containing commands to be issued to the operating system (similar to a batch file)
-- cp/m: executable
-- dos: executable
+C:\>out\dd
+installed
+C:\>out\dd
+already installed
+C:\>mem -nosummary -full
+...
+  0819        304    (0K)  DD            program
+  082d     55,248   (54K)  MEM           program
+  15ab    566,576  (553K)                free
+...
+C:\>out\dd u
+uninstalled
+C:\>out\dd u
+not installed
+C:\>mem -nosummary -full
+```
 
-特点
+上面 mem 打印的列表中, program 的 segment 处放了 16 bytes 的 mcb, mcb 从 0 起第 3 个字节处的 1 个 word 记录了内存块的以 16 bytes 为单位的大小, 不包含 16 bytes 的 mcb. 因为内存块大小是 16 的整数倍所以程序结尾可能有几个无用字节. 列表显示 dd 的内存是 304 = 0x130, 里面依次是 psp, 截取后的程序, 可能的无用字节. hex 819:0 + 10 + 130 = 819:140 = 82d:0, 下面大致查看一下内存. 重启 dosbox-x.
 
-- max size = 65,280 (FF00h) bytes (256 bytes short of 64 KB)
-- stores all its code and data in one segment
-- entry point is fixed at 0100h
+```
+C:\>out\dd
+installed
+C:\>mem -nosummary -full
+...
+  0819        304    (0K)  DD            program
+  082d     55,248   (54K)  MEM           program
+...
+C:\>debug
+-d 819:0 l20
+0819:0000  4D 1A 08 13 00 20 20 20-44 44 00 00 00 00 00 00   M....   DD......
+0819:0010  CD 20 FF 9F 00 9A F0 FE-1D F0 C8 DA 00 F0 28 01   . ............(.
+-d 82c:0 l30
+082C:0000  C8 8E C0 CF E8 84 00 73-03 E9 9E 00 E8 61 00 72   .......s.....a.r
+082C:0010  5A 2E 08 D1 97 21 89 1E-44 45 42 55 47 00 00 00   Z....!..DEBUG...
+082C:0020  CD 20 FF 9F 00 9A F0 FE-1D F0 C8 DA 00 F0 28 01   . ............(.
+-u 819:110
+0819:0110 EB22          JMP     0134
+0819:0112 20D2          AND     DL,DL
+0819:0114 00F0          ADD     AL,DH
+0819:0116 80FCC0        CMP     AH,C0
+0819:0119 7405          JZ      0120
+...
+0819:012F 8CC8          MOV     AX,CS
+-u
+0819:0131 8EC0          MOV     ES,AX
+0819:0133 CF            IRET
+0819:0134 E88400        CALL    01BB
+0819:0137 7303          JNB     013C
+0819:0139 E99E00        JMP     01DA
+0819:013C E86100        CALL    01A0
+0819:013F 725A          JB      019B
+...
+-q
+```
 
-dos 和 cp/m 的 com 文件结构虽然一样但互不兼容. dos 文件包含的是 x86 指令和 dos 系统调用; cp/m 文件包含 8080 指令和 cp/m 系统调用, 特定于机器的程序可能还会有 8085, Z80 指令.
+resources on tsr
 
-fat binary
-
-- https://en.wikipedia.org/wiki/Fat_binary
-- 基本上是把多个功能一样的程序放到一个文件里, 开头的代码选择使用其中一个
-- 开头的代码, 即入口代码, 是在几个系统中都有效但功能不同的指令, 比如 `c3 3 1` 在 8080 上是 `JP 103h`, `c3` 在 x86 上是 `ret`
-
-有些 exe 文件会使用 com 扩展名 (dos 4+?). 加载程序查看文件的前几个字节, 如果发现是 exe 就按 exe 执行, 否则才按 com 执行,
-
-- https://retrocomputing.stackexchange.com/questions/14520/how-did-large-com-files-work
-- https://github.com/microsoft/MS-DOS/blob/master/v2.0/source/EXEC.ASM#L331
-
-DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE 是以 .com 结尾的 exe, 因为老的 bat 文件可能使用命令的全名, win nt 为兼容这些 bat 就保留了前述 exe 的原名. 执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo 依次找 `foo`, `foo.com`, `foo.exe`. win nt 环境变量 PATHEXT 可以指定扩展名顺序, 默认仍然是 com 先于 exe.
+- https://www.plantation-productions.com/Webster/www.artofasm.com/DOS/pdf/ch18.pdf
+- https://www.fysnet.net/tsrdemo.htm
 
 #### expanded memory
 
@@ -1346,7 +1643,7 @@ DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE 是以 .com 结尾的 exe, 因为�
 
 实模式 640k 内存不够用, 所以出现了几种修改 uma 区域的内存地址映射以增加内存的办法,
 
-.|.|.|.
+|||||
 -|-|-|-
 8086 |      real mode | hardware | isa 扩展内存卡占用一块地址
 8086 |      real mode | hardware | custom address decoder
@@ -1918,6 +2215,8 @@ IP=0104
 
 执行 0x100: ??? [bx+si] 后 ip = 0x104, 说明 0xfe 0x38 xx xx 是个 4 字节指令? 我怀疑是 dosbox-x 没有模拟扩展内存卡, 对 int 67h 调用直接返回了内部处理结果. 为验证这个想法下面在更精确的模拟器里查看 emm 和扩展内存卡的交互.
 
+*后来在 dosbox-x debugger 里看到 C401:00000004 FE384500 callback 0045  (Int 67 ems) 所以 0x(fe 38 xx xx) 应该是 dosbox-x callback.*
+
 #### lim 4.0 on 86box
 
 - 按 /readme/msdos 5.0 on ibmxt on 86box 创建虚拟机
@@ -1953,33 +2252,6 @@ IP=0104
 
 显然 isr 要求 0x39 < ah < 0x5e, 其余代码只有 1 个 jump 即 jmp [0x30], 那里代码很长. ltemm.zip 里面有源代码以后再看.
 
-#### int 2fh
-
-- INT 2fH: Multiplex Interrupt http://www.techhelpmanual.com/681-int_2fh__multiplex_interrupt.html
-
-`dos 3.0+` 中断 #0x2f 位于 0:0xbc, 也叫 mux interrupt, 是一些 dos 服务. ah 的值叫 mux number, dos 保留 0-0xbf.
-
-有种做法是注册 int 2fh 回调函数, 方式为:
-
-- 用 int21h/ah35h 获取 isr #0x2f, 保存下来
-- 用 int21h/ah25h 把 isr #0x2f 替换成你的
-- 为你的 isr 选一个 mux number, 在 isr 中,
-    - 检查 mux number 即 ah, 若匹配则响应
-    - 若不匹配则 far jump 到保存的 isr #0x2f
-
-显然这是个跳转链, 链上陆续判断 ah, 最终执行相应的函数即某个旧 isr #0x2f. 这套流程比挂接其他 isr 多出个选择 mux number. 为不和他人冲突, 执行下列步骤:
-
-- 用 ah = 0xff-0xc0 逐一调用 int 2fh 找出空闲值, 假设是 n
-- n 没地方保存, 所以 isr 要对 ah = n, al = 0 返回 al = 0xff 并且设置某个自己定义的标记帮助后续判断
-- 调用自己的 isr 时用 ah = 0xff-0xc0 逐一调用 int 2fh 并检查自己定义的标记, 如果匹配则找出了 n
-
-但我不明白这套复杂操作的用意, 因为,
-
-- dos 的 ivt 可以任意修改, 挂接到任意的 int # 都没区别. 你的 isr 反正不是固定地址, 根本没人在意你挂哪
-- 既然保留了原来的 isr #0x2f, 那还费事儿找可用的 mux number 干啥? 任选一个, 处理完跳到原来的 isr 不就行了
-- 有些中断要求快速处理, 那种 isr 就不适合挂接
-- 那套复杂操作显然想实现一种自适应的共存方式, 在不能替换 isr 的场合下应该有用
-
 #### xms
 
 - Overview of Memory-Management Functionality in MS-DOS https://jeffpar.github.io/kbarchive/kb/095/Q95555/
@@ -2006,7 +2278,7 @@ config.sys      | dos = low     | = no `dos=`. loads dos low. then processes `de
 || installhigh =                | attempts to load a tsr into umbs
 autoexec.bat | loadhigh or lh   | loads a program into umbs
 
-himem.sys 挂接 int 2fh 响应 ah 0x43xx, 实现除 umb 外的 xms 功能. emm386.exe 实现 umb 功能即 0x10~0x12. 如果 config.sys 里有 dos=umb 则 emm386.exe 会在 dos 命令提示报告 0 (zero) umbs are available, 此时程序应该通过 dos api 使用 umb. 不清楚 emm386.exe 是否挂接了 int 2fh, 它的功能补充到了 xms api 函数 (称作 control function) 里, 看起来和 int 2fh 无关.
+himem.sys 劫持 int 2fh 响应 ah 0x43xx, 实现除 umb 外的 xms 功能. emm386.exe 实现 umb 功能即 0x10~0x12. 如果 config.sys 里有 dos=umb 则 emm386.exe 会在 dos 命令提示报告 0 (zero) umbs are available, 此时程序应该通过 dos api 使用 umb. 不清楚 emm386.exe 是否劫持了 int 2fh, 它的功能补充到了 xms api 函数 (称作 control function) 里, 看起来和 int 2fh 无关.
 
 xmm | ah | xms api
 -|-|-
@@ -2108,7 +2380,7 @@ set path=c:\watcom;c:\masm611\bin;c:\masm611\binr;%path%
 wlink 连接的 obj 要求源代码有下列写法,
 
 - `xxx segment 'code'`. 不写 'code' 导致用 dos32a 执行时关闭 dosbox
-- `s01 segment 'stack'`. wlink 不把 `s01 segment stack` 当作栈段
+- `s01 segment 'stack'`. wlink 不把 `s01 segment stack` 当作栈段, 栈段大小默认值是 0x1000
 - `mov edx, offset msg`. offset is 32-bit, `mov dx, offset msg` gives a wrong pointer
 
 (watcom)/docs/pguide.pdf 的要点,
@@ -2177,6 +2449,7 @@ wlink 连接的 obj 要求源代码有下列写法,
 xxx segment 'code'
 s:
 ; ds already holds the appropriate value
+
     mov edx, offset msg
     mov ah, 9
     int 21h
@@ -2188,7 +2461,7 @@ msg byte 'hello, world', 13, 10, '$'
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
+; wlink sets stack size according to command-line arg, defaults to 0x1000 bytes
 s01 ends
     end s
 ```
@@ -2267,7 +2540,6 @@ itoa    endp
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end s
 
@@ -2366,7 +2638,7 @@ s:
 ; 19~16: undefined     14~13: DPL
 ;  7~ 0: 0               12: S flag
 ;                          11~8: segment type
-; 0000 0000 ???? uuuu ???? ???? 0000 0000
+; 0000 0000 xxxx uuuu xxxx xxxx 0000 0000
 ;              20: software-available bit in the descriptor
 ;             21: L flag
 ;            22: D/B flag
@@ -2469,7 +2741,6 @@ memInfo memInfo_t   <>
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end s
 ```
@@ -2556,30 +2827,21 @@ baseFromDescriptorAddr:
 ; 6         4~7     avl, l, d/b, g
 ; 7         0~7     base    24~31
 
-    push    ecx
-    movzx   ebx, word ptr [edx + 2] ; ebx = base 15~ 0
-
-    movzx   ecx, byte ptr [edx + 4] ; ecx = base 23~16
-    shl     ecx, 16
-    add     ebx, ecx                ; ebx = base 23~ 0
-
-    movzx   ecx, byte ptr [edx + 7] ; ecx = base 31~24
-    shl     ecx, 24
-    add     ebx, ecx                ; ebx = base 31~ 0
-
-    pop     ecx
+    mov     bh, [edx + 7]   ; xxxxxxxx xxxxxxxx 31~24    xxxxxxxx
+    mov     bl, [edx + 4]   ; xxxxxxxx xxxxxxxx 31~24    23~16
+    shl     ebx, 16         ; 31~24    23~16    00000000 00000000
+    mov     bx, [edx + 2]   ; 31~24    23~16    15~0
     ret
 
 limitFromDescriptorAddr proc
 ; in    edx = address of descriptor
 ; out   ebx = segment limit from descriptor
 
-    push    ecx
-    movzx   ebx, word ptr [edx + 0] ; ebx = limit 15~0
-    movzx   ecx, byte ptr [edx + 6] ; ecx = xxxx + limit 19~16
-    shl     cl, 4                   ; ecx = limit 19~16 + 0000
-    shl     ecx, 12
-    add     ebx, ecx                ; ebx = limit 19~0
+    xor     ebx, ebx
+    mov     bl, [edx + 6]   ; 00000000 00000000 00000000 x..19~16
+    shl     bl, 4           ; 00000000 00000000 00000000 19~16..0
+    shl     ebx, 12         ; 00000000 0..19~16 00000000 00000000
+    mov     bx, [edx]       ; 00000000 0..19~16 15~0
 
     test    byte ptr [edx + 6], 80h ; g d 0 avl limit19~16
     jz      @f                      ; g = 0, limit is in bytes
@@ -2587,7 +2849,6 @@ limitFromDescriptorAddr proc
     shl     ebx, 12 ; g = 1, limit is in 4kb pages: (limit << 12) | 0xfff
     add     ebx, 0fffh
 @@:
-    pop     ecx
     ret
 limitFromDescriptorAddr endp
 
@@ -2602,12 +2863,11 @@ loadSegmentLimit:
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end s
 ```
 
-ml 用的 dos extender 是 dosxnt.exe, 网上找不到资料.
+ml 用 phar lap dos extender, dosxnt.exe.
 
 #### dpmi
 
@@ -2675,41 +2935,18 @@ CWSDPMI V0.90+ (r7) Copyright (C) 2010 CW Sandmann  ABSOLUTELY NO WARRANTY
 
 dpmi 的程序模型是: 调用从 dpmi host 获取的切换到保护模式的函数, 创建指向 32 位代码段描述符的 selector, far jump 到 32 位代码以更新 selector.
 
-- int2fh/ax1687h 返回的函数做这些事儿: 把 cs, ds, es, ss 替换为 selector, 段基址是实模式下相应地址的线性地址, 即段左移 4 位和偏移相加 (段的偏移是 0), cs 是 16 位代码, ds, es, ss 是 32 位数据, fs, gs 替换为 0
+- int2fh/ax1687h 返回的函数把 cs, ds, es, ss 替换为 selector, 对应 descriptor 的基址是实模式下相应地址的线性地址, 即段左移 4 位和偏移相加. cs 是 16 位代码, es 是 16 位数据, ds, ss 是 32 位数据, fs, gs 替换为 0
 - int31h/ah0 创建 descriptor 及相应的 selector
-- lar 获取 cs 保存的 selector 的 access rights, 将其高字节从 0 起第 6 位改为 1, int31h/ah9 把改动保存到 descriptor
+- lar 从 selector 获取 access rights, int31h/ah9 设置
 - selector 对应的基址在满足 base + offset = linear address of start of 32-bit code 的前提下可以任选, offset 就是跳转后第 1 条指令的偏移
 
-从 debug 里调用 int2fh/ax1687h 返回的函数会让 dos 类似死机, 应该是不能从 debug 里切换到保护模式, 所以只能从程序里调用. 一开始想生成 16 位 com, 给 fn 的 ax 传 0 表示要执行 16 位代码, 执行发现 cwsdpmi 报告 `16-bit DPMI unsupported.` 那只能混合 16 和 32 位代码. 我怀疑 wlink 能干这事儿, 但现在就想用 masm 的 link 生成 com.
+从 debug 里调用 int2fh/ax1687h 返回的函数会让 dos 类似死机, 应该是不能从 debug 里切换到保护模式, 所以只能从程序里调用. 一开始想生成 16 位 com, 给 fn 的 ax 传 0 表示要执行 16 位代码, 执行发现 cwsdpmi 报告 `16-bit DPMI unsupported.` 那只能混合 16 和 32 位代码, 这里用 masm 生成 com.
 
 - 不明白什么叫 "16-bit DPMI unsupported". 进入 16 位保护模式后可以调用一些 dpmi 函数, 算 supported 还是 unsupported?
 - 代码要分别定义 16 和 32 位段不能合并, 否则 `fatal error L1123: XXX : segment defined both 16- and 32-bit`
 - 从 16 位段跳到 32 位段是 `intersegment jump` 即 far jump, `error A2107: cannot have implicit far jump or call to near label`, 那只能 jmp far m16:32. 只要线性地址正确也可以 jmp far m16:16, cpu 用 0 填充 offset 的高 word
 - 代码可以定义多个段, 这些段里标签的偏移都相对于所在的段. 但 com 文件只生成 1 个段, 代码使用其他段的标签需要它的段和偏移, 段的值取不到: `fatal error L1127: far segment references not allowed with /TINY`, 所以从 16 位段跳到 32 位段时要根据段的结尾计算下一个段的起始地址
 - 16 位段可以用 32 位寄存器, 因为是 32 位 cpu 在执行 16 位代码
-
-wd 可以调试保护模式程序, 可能能调试 cwsdpmi 程序, 而我想用 dosbox-x debugger. 查看 /readme/dosbox-x debugger 以了解如何使用. 调试器的 gdt 命令打印类似下面的内容:
-
-```
-GDT Base:0000D3EE Limit:00000087
-0000: b:00000000 type: 00 parbg
-      l:00000000 dpl : 0  00000
-```
-
-知道 0000 = selector index, b = base, l = limit. type 和 parbg 是啥? 根据 https://dosbox-x.com/doxygen/html/debug_8cpp_source.html line 371, 没看明白. 那里使用了 desc.saved.seg.(p, avl, r, big, g), 分别是啥? desc.saved.seg 的类型 S_Descriptor 定义在 https://dosbox-x.com/doxygen/html/cpu_8h_source.html line 261, 没有注释.
-
-- type 有 9, b, 12, 1a 等, 不明白啥意思. 0x12 和 0x1a 是 5 位数字, intel 的 type 是 4 位
-- ldt 命令列出的条目第 1 项居然不是 0 而是 4. 多次调用 ldt 列出的内容也不一致
-- selinfo 命令列出的内容经常出错
-- intel sdm, vol.3, Figure 3-8. Segment Descriptor 有部分解释,
-    ```
-    p       segment present
-    avl     available for use by system software
-    r       readable?
-    big     d/b. 很麻烦, 基本上 0 = 16-bit segment, 1 = 32-bit
-    g       granularity
-    type    segment type
-    ```
 
 用 cwsdpmi 进入保护模式后 int21h/ah9 输出大块错误内容, 试了几种改动都解决不了, 网上搜了好几天才找到 2 条可能相关的语句. 我仍不知道 cwsdpmi 能否能正常调用 int21h/ah9, 完全有可能是我的调用方式或前置条件不对.
 
@@ -2725,7 +2962,9 @@ GDT Base:0000D3EE Limit:00000087
     Your application tried to call an interrupt from protected mode which normally shouldn't be called (something like a data pointer).
 - `quick look` https://www.delorie.com/djgpp/v2faq/faq18_13.html
 
-下面的示例用命令行参数决定使用 0 或 "32 位代码起始位置的线性地址" 做基址, 参数见代码或后面的执行示例.
+下面的示例读取命令行参数, 如果第 1 个参数不是 0 就用 32 位代码起始位置的线性地址做基址, 否则用 0 做基址.
+
+- 参考 /readme/dosbox-x debugger 进行调试
 
 ```
 ; ml -Foout\ dd.msm -Feout\ -AT
@@ -2997,7 +3236,7 @@ szYesVmem   byte    'virtual memory supported', 13, 10, 0
 szNoVmem    byte    'virtual memory not supported', 13, 10, 0
 
 print   proc
-; in    esi = start of sz
+; in    ds:esi = start of sz
 
     push    eax
     push    edx
@@ -3029,7 +3268,6 @@ selectorToDescriptorAddr proc
     and     edx, 0fff8h
     add     edx, [esp + 4]
     jmp     @f
-
 use_ldt:
     xor     edx, edx
     sldt    dx
@@ -3047,30 +3285,23 @@ use_ldt:
 selectorToDescriptorAddr endp
 
 baseFromDescriptorAddr:
-    push    ecx
-    movzx   ebx, word ptr fs:[edx + 2]
-    movzx   ecx, byte ptr fs:[edx + 4]
-    shl     ecx, 16
-    add     ebx, ecx
-    movzx   ecx, byte ptr fs:[edx + 7]
-    shl     ecx, 24
-    add     ebx, ecx
-    pop     ecx
+    mov     bh, fs:[edx + 7]
+    mov     bl, fs:[edx + 4]
+    shl     ebx, 16
+    mov     bx, fs:[edx + 2]
     ret
 
 limitFromDescriptorAddr proc
-    push    ecx
-    movzx   ebx, word ptr fs:[edx + 0]
-    movzx   ecx, byte ptr fs:[edx + 6]
-    shl     cl, 4
-    shl     ecx, 12
-    add     ebx, ecx
+    xor     ebx, ebx
+    mov     bl, fs:[edx + 6]
+    shl     bl, 4
+    shl     ebx, 12
+    mov     bx, fs:[edx]
     test    byte ptr fs:[edx + 6], 80h
     jz      @f
     shl     ebx, 12
     add     ebx, 0fffh
 @@:
-    pop     ecx
     ret
 limitFromDescriptorAddr endp
 
@@ -3100,6 +3331,332 @@ CWSDPMI V0.90+ (r7) Copyright (C) 2010 CW Sandmann  ABSOLUTELY NO WARRANTY
 
 C:\>out\dd
 virtual memory not supported
+```
+
+#### relocation
+
+com 一般从 offset 256 开始执行所以代码用 org 256 标记起始偏移, 只要没有从假定的偏移开始执行代码里的偏移就全错. 为解决这个问题 exe 文件带有让 loader 读取的文件头, 文件头里记录了 exe 期望的加载地址和所有使用地址的代码. 如果加载到期望的地址就直接执行, 否则先修正前面记录的使用地址的代码再执行.
+
+- org n 的作用
+    - 把其后的语句放在可执行文件的代码部分的第 n 字节, 若造成该语句后移, 用 0 填充之间的部分, 相应调整标签的值
+    - 多个源文件, 或生成的不是 com 时 org 可能偏大 http://support.microsoft.com/kb/39441/en-us
+    - 生成 com 文件 && 使用了 org && 其后的语句被 end 标为起始地址 && 将生成 > 256 字节的可执行文件<br>
+        则删除起始地址前面的内容, 参考 [起始地址](#起始地址)/com 文件的起始地址
+- ip 相对寻址
+    - https://stackoverflow.com/questions/599968/reading-program-counter-directly
+        ```
+            call _here
+        _here:
+            pop eax ; eax now holds the PC.
+        ```
+    - on newer cpus call rel32 (0) 不影响 return-address predictor stack http://blog.stuffedcow.net/2018/04/ras-microbenchmarks/#call0
+
+mz 是 16 位 exe, 重定位是修改段值. masm 6.11 的 link 是 16 位连接器, dos 5.0 是 16 位加载器.
+
+```
+; ml -Foout\ dd.msm -Feout\
+
+c01 segment
+s:
+    mov ax, c01
+    mov ax, c02
+    mov ds, ax
+
+    mov ax, 4c00h
+    int 21h
+
+    mov ax, d01
+c01 ends
+c02 segment
+    mov ax, c01
+    mov ax, c02
+    mov ax, d01
+c02 ends
+d01 segment stack
+    word    c01
+    word    c02
+    word    d01
+d01 ends
+    end s
+```
+
+查看代码里的重定位信息:
+
+- `ml -Flout\ -Zs dd.msm`, out\dd.lst 的部分内容如下, 显示 3 项需要重定位. 单看 r 不能确认是否需要重定位,
+    ```
+    0000               c02 segment
+    0000  B8 ---- R            mov ax, c01
+    0003  B8 ---- R            mov ax, c02
+    0006  B8 ---- R            mov ax, d01
+    0009               c02 ends
+    ```
+
+查看生成的 exe 的重定位信息:
+
+- `exehdr out\dd.exe`, 其中一行是 `Relocations: 0009` 说明有 9 个需要重定位的条目, 但不知如何查看具体位置
+- `wdump -a out\dd.exe`, 部分输出如下,
+    ```
+    segment:offset
+      0000:0001   0000:0004   0000:000E   0001:0001   0001:0004   0001:0007
+      0002:0000   0002:0002   0002:0004
+
+    load module =
+    0000:  B8 00 00 B8 01 00 8E D8  B8 00 4C CD 21 B8 02 00              L !
+    0010:  B8 00 00 B8 01 00 B8 02  00 00 00 00 00 00 00 00
+    0020:  00 00 01 00 02 00
+    ```
+
+exehdr 的输出有这么一行 `Extra paragraphs wanted: ffff`, 对应 wdump 的 `maximum number of paragraphs required above load mod = FFFFH`. 前面说过 dos 在启动 exe 时给予全部常规内存, 就是因为 link 设置了这个标记; 启动 com 时无标记可读, 也给全部的常规内存. 程序可以在执行时计算自己实际占用的内存然后调用 dos api 以 shrink memory, 或者用 link 参数 `/CP[ARMAXALLOC]:number` 让其不把那标记设置得那么大, 类似 `link /cparmaxalloc:1 ...`, 或者用类似 exehdr 的程序修改 exe 的相应标记. 不知道 wlink 如何调整该标记.
+
+32 位代码一般都在保护模式, 使用 base + offset 得出地址. 汇编器把 offset 对应到段内偏移, 所以执行时要得到正确地址要么让 base 等于段的加载地址, 要么让 base = 任意值, 一般是 0, 并依赖 loader 修改所有 offset, loader 必须知道假定的 base 是几并相应的应用重定位表. base = 0 就是普遍采用的 flat 内存模型. 所以, 16 位程序的重定位是修改段值保持偏移, 32 位程序的重定位是保持段值修改偏移, 这... 真的不是故意搞笑吗?
+
+在 dos 里执行 32 位代码一般借助 dos extender 比如 dos/4g, dos/32a, 这种程序文件包含两个程序, 16 位 stub 和 32 位程序, 加载过程是: dos -> stub -> dos extender -> 32 位程序, 发生 2 次分别是 dos 的 16 位和 dos extender 的 32 位重定位. dos extender 作为 loader 只加载特定格式的 exe, 而我希望生成一个包含 16 和 32 位代码的程序, 两种代码使用同一个数据段里的变量, 连接器对两种代码设定不同的 fixup, 加载器应用这些不同的修正. 不知道是否有这样的连接器, 重定位表, 加载器.
+
+下面把 dpmi 节的 com 代码修改为 exe. link 只能生成, dos 也只能加载 16 位 mz, 32 位代码里的重定位需要程序自己处理.
+
+- 用 link 参数指出加载时不需要给多余内存
+- dpmi host 会创建 base = linear address of ds, limit = 0xffff 的 32 位数据段, 将 selector 放入 ds, 32 位代码可以用这个 selector 访问数据段
+- 32 位段里的变量都需要重定位, 本程序没有在 32 位段里定义变量所以躲过了此问题
+- sgdt 给出的内存不一定在哪 (应该在常规内存?), 为访问它, 创建 base = 0, limit = 4g 的 descriptor, 将 selector 保存在 fs
+- 执行此程序前先执行 dpmi host 比如 cwsdpmi
+- 没搞明白既然 wd 在 dos4g 下运行, 为什么用 wd 调试时程序检测不到 dos4g 这个 dpmi host
+- 执行 cwsdpmi 后没法用 wd 调试, 只能用 dosbox-x debugger
+
+```
+; ml -Foout\ dd.msm -Feout\ -link -cparmaxalloc:1
+
+    .386
+    assume  ds: d01
+
+s16 segment use16
+s:
+    mov ax, d01
+    mov ds, ax          ; actually let ds = d01
+
+    mov ax, 1687h
+    int 2fh
+    test ax, ax
+    jnz failDpmiHost
+
+    mov fn + 0, di
+    mov fn + 2, es
+
+    mov bx, si          ; required memory, in paragraphs
+    mov ah, 48h         ; int21h/ah48h, allocate memory / query free memory
+    int 21h
+    jc  failHostMem
+
+    mov es, ax          ; at what point, if at all, should this memory be freed?
+    mov ax, 1           ; 32-bit dpmi client
+    call dword ptr fn
+
+; on success, protected mode with 16-bit code segment starts here
+
+    jc  failPm
+
+    mov ax, 0           ; int31h/ax0: allocate ldt descriptors
+    mov cx, 1
+    int 31h
+    mov csel, ax
+
+    mov ax, 0
+    mov cx, 1
+    int 31h
+    mov fs, ax
+
+    jc  exit
+
+    mov ax, 9           ; int31h/ax9: set descriptor access rights
+
+    mov cx, cs
+    lar cx, cx
+    shr cx, 8
+    or  ch, 1000000b
+    mov bx, csel
+    int 31h
+
+    mov cx, ds
+    lar cx, cx
+    shr cx, 8
+    or  ch, 1000000b
+    mov bx, fs
+    int 31h
+
+    mov ax, 7           ; int31h/ax7: set segment base address
+    xor cx, cx
+    xor dx, dx
+    mov bx, csel
+    int 31h
+    mov bx, fs
+    int 31h
+
+    mov ax, 8           ; int31h/ax8: set segment limit
+    mov cx, 0ffffh
+    mov dx, cx
+    mov bx, csel
+    int 31h
+    mov bx, fs
+    int 31h
+
+    mov eax, s32
+    shl eax, 4
+    mov s32start, eax       ; linear address of s32
+    jmp fword ptr s32start  ; jump to 32-bit code
+
+failDpmiHost:
+    mov dx, offset sFailDpmiHost
+    jmp talk16
+
+failPm:
+    mov dx, offset sFailPm
+    jmp talk16
+
+failHostMem:
+    mov dx, offset sFailHostMem
+    jmp talk16
+
+talk16:
+    mov ah, 9
+    int 21h
+
+exit:
+    mov ax, 4c00h
+    int 21h
+s16 ends
+
+s32 segment
+    mov     eax, cs
+    call    selectorToDescriptorAddr
+    call    baseFromDescriptorAddr  ; ebx holds segment base from selector's descriptor
+
+    call    loadSegmentLimit        ; fill ebx
+    lsl     ecx, eax                ; ebx = ecx is expected in debugger
+
+    mov     eax, ds
+    call    selectorToDescriptorAddr
+    call    baseFromDescriptorAddr  ; ebx holds segment base from selector's descriptor
+
+    call    loadSegmentLimit        ; fill ebx
+    lsl     ecx, eax                ; ebx = ecx is expected in debugger
+
+; call some dpmi functions
+
+    mov     eax, 400h
+    int     31h
+    jc      fail32
+
+    test    ebx, 100b
+    jz      noVmem
+
+    mov     esi, offset szYesVmem
+    call    print
+
+exit32:
+    mov     ax, 4c00h
+    int     21h
+
+fail32:
+    mov     esi, offset szFail32
+    call    print
+    jmp     exit32
+
+noVmem:
+    mov     esi, offset szNoVmem
+    call    print
+    jmp     exit32
+
+print   proc
+; in    ds:esi = start of sz
+
+    push    eax
+    push    edx
+    mov     ah, 2
+    cld
+@@:
+    lodsb
+    cmp     al, 0
+    je      done
+
+    mov     dl, al
+    int     21h
+    jmp     @b
+
+done:
+    pop     edx
+    pop     eax
+    ret
+print   endp
+
+; the following 4 functions are copied from another sample
+
+selectorToDescriptorAddr proc
+    sub     esp, 8
+    sgdt    [esp + 2]
+    test    eax, 4
+    jnz     use_ldt
+    mov     edx, eax
+    and     edx, 0fff8h
+    add     edx, [esp + 4]
+    jmp     @f
+use_ldt:
+    xor     edx, edx
+    sldt    dx
+    and     dx, 65528
+    add     edx, [esp + 4]
+    push    ebx
+    call    baseFromDescriptorAddr
+    mov     edx, eax
+    and     edx, 0fff8h
+    add     edx, ebx
+    pop     ebx
+@@:
+    add     esp, 8
+    ret
+selectorToDescriptorAddr endp
+
+baseFromDescriptorAddr:
+    mov     bh, fs:[edx + 7]
+    mov     bl, fs:[edx + 4]
+    shl     ebx, 16
+    mov     bx, fs:[edx + 2]
+    ret
+
+limitFromDescriptorAddr proc
+    xor     ebx, ebx
+    mov     bl, fs:[edx + 6]
+    shl     bl, 4
+    shl     ebx, 12
+    mov     bx, fs:[edx]
+    test    byte ptr fs:[edx + 6], 80h
+    jz      @f
+    shl     ebx, 12
+    add     ebx, 0fffh
+@@:
+    ret
+limitFromDescriptorAddr endp
+
+loadSegmentLimit:
+    call    selectorToDescriptorAddr
+    call    limitFromDescriptorAddr
+    ret
+s32 ends
+
+d01 segment
+sFailDpmiHost   byte    'no dpmi host', 13, 10, '$'
+sFailPm         byte    'failed to enter protect mode', 13, 10, '$'
+sFailHostMem    byte    'no memory for dpmi host', 13, 10, '$'
+szFail32        byte    'call failed in protected mode', 13, 10, 0
+szYesVmem       byte    'virtual memory supported', 13, 10, 0
+szNoVmem        byte    'virtual memory not supported', 13, 10, 0
+fn              word    ?, ?
+s32start       dword    ?
+csel            word    ?
+d01 ends
+
+s01 segment stack
+    dword   64 dup (?)
+s01 ends
+    end s
 ```
 
 ### 3d 图形
@@ -3204,7 +3761,6 @@ s:
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end s
 ```
@@ -3288,7 +3844,6 @@ main_:
 xxx ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end
 ```
@@ -3473,7 +4028,7 @@ GrHwConfiguration ends
 
 ; typedef struct {
 ;   float  sow;                   /* s texture ordinate (s over w) */
-;   float  tow;                   /* t texture ordinate (t over w) */  
+;   float  tow;                   /* t texture ordinate (t over w) */
 ;   float  oow;                   /* 1/w (used mipmapping - really 0xfff/w) */
 ; }  GrTmuVertex;
 
@@ -3685,7 +4240,6 @@ szFailopen  byte    'grSstOpen failed!', 0
 d01 ends
 
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end
 ```
@@ -3720,7 +4274,6 @@ main_:
 sz  byte 'eax = 0x%x, edx = 0x%x, [esp] = 0x%x, [esp + 4] = 0x%x', 10, 0
 xxx ends
 s01 segment 'stack'
-    dword   64 dup (?)
 s01 ends
     end
 ```
@@ -3809,9 +4362,11 @@ watcom 16 位 80x87 程序指编译时使用了 `fpi` 或 `fpi87` 选项. 这种
 
 至此基本搞清楚了 watcom 程序基于寄存器和基于栈的调用约定.
 
-## 386 protected mode
+## 386 cpu
 
-286 发明了 protected mode 即受保护模式, 中文译为保护模式. 受保护的是内存, 保护方式有 2:
+### cr0.pe
+
+286 发明了 protected mode 即受保护模式, 中文译为保护模式; 386 发明了分页. 受保护的是内存, 保护方式有 2:
 
 1. 必选的分段. 给线性地址附加一个 descriptor 描述线性地址的起始 (base), 大小 (limit), 是否支持读写执行, 权限水平 (dpl), 数据长度 (16 位还是 32 位) 等乱七八糟的属性. 附加了 descriptor 的线性地址叫段. 段寄存器保存 selector 指向 descriptor, selector 有 rpl, cs selector 的 rpl 叫 cpl. cpl = 3 的程序启动时获得几个 selector, 所有线性地址访问只能通过这些 selector. 访问线性地址比如在代码里读取内存时 cpu 要确认 max(cpl, rpl) < dpl + 1 否则 #gp (general protection fault)
 1. 可选的分页. 启用时线性地址叫虚拟地址, 要经分页模块转换为物理地址. 页也有一些属性用于保护内存
@@ -3830,7 +4385,7 @@ intel sdm, vol. 1,
 - pae paging 属于 paging, 把 cpu 的 4g 线性地址空间对应到到 36 根地址线可以访问的 64g 物理地址空间
 - cpu 通过总线发出对物理内存地址的访问请求不一定落到物理内存, 回忆前面见过的内存地址映射
 
-### segmentation
+#### segmentation
 
 dos extender 节已经接触过分段了. 这里不使用 api, 用 cpu 指令进入保护模式然后回到实模式. 先回顾一下 16-bit 和 32-bit 代码里的 jump m16:16/32.
 
@@ -3875,7 +4430,6 @@ s:
     jmp fword ptr cs:s      ;    2E FF 2D 00 50 4C 00   <- o = 5
 xxx ends
 s01 segment 'stack'
-    dword 32 dup (?)
 s01 ends
     end s
 ```
@@ -3950,11 +4504,10 @@ s:
 ; linear address of this segment -> base of SEL_EXIT_CODE
 
     mov eax, ecx
-    mov word ptr gdt + SEL_EXIT_CODE + 2, ax    ; base  low, bits  0~15
+    mov word ptr gdt + SEL_EXIT_CODE + 2, ax    ; base bits  0~15
     shr eax, 16
-    mov byte ptr gdt + SEL_EXIT_CODE + 4, al    ; base  mid, bits 16~23
-    shr eax, 8
-    mov byte ptr gdt + SEL_EXIT_CODE + 7, al    ; base high, bits 24~31
+    mov byte ptr gdt + SEL_EXIT_CODE + 4, al    ; base bits 16~23
+    mov byte ptr gdt + SEL_EXIT_CODE + 7, ah    ; base bits 24~31
 
 ; linear address of infos -> ebx
 
@@ -4123,32 +4676,156 @@ s32 ends
 
 上面代码 s32 的注释里提到在用 dosbox-x debugger 调试时会打印错误并关闭 dosbox-x, 删掉 stosd 就可以调试至正常结束. 不在调试器里运行时看起来正常. 我不知道是否是代码的问题就在 86box 里试了试, 看起来也正常. 按 /readme/acc386 on 86box 创建虚拟机, 从光驱载入目录 /dos, 在虚拟机里执行 `d:out\dd`.
 
+在保护模式里基本没什么事情可做, 因为没有 api 或函数库. 想做任何实质的工作首先要:
+
+- 自己实现需要的 bios 和 dos api. 这等于写一个操作系统
+- 切换到实模式调用需要的 api, 调用结束切换回保护模式. dos extender 就是这么做的
+
 
 
 todo: ### paging
 
 *i'd like to save it for another day.*
 
+### dr0-dr7
+
+intel sdm, vol. 3,
+
+- 7.15 exception and interrupt reference
+    - > Interrupt 1-Debug Exception (#DB)<br>
+    Exception Class Trap or Fault. The exception handler can distinguish between traps or faults by examining the contents of DR6 and the other debug registers.
+    - Table 7-3. Debug Exception Conditions and Corresponding Exception Classes<br>
+        *the information in this table is fully covered by table 19-2.*
+- 19.2 debug registers
+    - dr0-dr3 保存 4 个线性地址, 对应 4 个断点
+    - 19.2.3 Debug Status Register (DR6) 有些调试异常清除 bits 0~3, 其余位从来不清. 为避免困惑处理程序应清除除 bit 16 外的所有位
+    - dr7 设置断点类型
+- 19.3.1 Debug Exception (#DB)-Interrupt Vector 1
+    - Table 19-2. Debug Exception Conditions
+        Debug or Breakpoint Condition | DR6 Flags Tested | DR7 Flags Tested | Exception Class
+        -|-|-|-
+        Single-step trap | BS = 1 || Trap
+        Instruction breakpoint, at addresses defined by DRn and LENn | Bn = 1 and (Gn or Ln = 1) | R/Wn = 0 | Fault
+        Data write breakpoint, at addresses defined by DRn and LENn | Bn = 1 and (Gn or Ln = 1) | R/Wn = 1 | Trap
+        I/O read or write breakpoint, at addresses defined by DRn and LENn | Bn = 1 and (Gn or Ln = 1) | R/Wn = 2 | Trap
+        Data read or write (but not instruction fetches), at addresses defined by DRn and LENn | Bn = 1 and (Gn or Ln = 1) | R/Wn = 3 | Trap
+        General detect fault, resulting from an attempt to modify debug registers (usually in conjunction with in-circuit emulation) | BD = 1 | None | Fault
+        Task switch | BT = 1 | None | Trap
+        INT1 instruction | None | None | Trap
+
+实模式和保护模式都能使用调试寄存器. 下面的实模式示例在 dosbox-x 里不进 isr, 在 /readme/acc386 on 86box 里正常.
+
+```
+; ml -Foout\ dd.msm -Feout\ -AT
+
+    .386
+    assume  ds:  xxx
+
+xxx segment use16
+    org     256
+s:
+    mov     iv1 + 2, cs
+    call    xchgIv1
+
+    mov     eax, 10000h     ; clear dr6 except bit 16
+    mov     dr6, eax
+
+    int     1               ; software interrupt
+    call    talk
+
+    mov     eax, cs         ; linear address of the breakpoint label -> dr0
+    shl     eax, 4
+    add     eax, breakpoint
+    mov     dr0, eax
+
+; dr7   bits
+;     18, 19 = len0 = 0 = one-byte
+;     16, 17 = r/w0 = 0 = execution only
+; 12, 14, 15 = reserved, must be 0
+;  8,  9, 10 = reserved, must be 1
+;          0 = l0 = 1
+
+    mov     eax, 701h
+    mov     dr7, eax
+
+breakpoint:
+    call    talk            ; hardware breakpoint
+
+    int     1               ; software interrupt
+    call    talk
+    call    xchgIv1
+
+    mov     dx, offset s3   ; exit
+    mov     ah, 9
+    int     21h
+    ret
+
+iv1 word    isr1, ?
+hw  word    0
+s1  byte    '[info] hardware breakpoint triggered', 13, 10, '$'
+s2  byte    '[info] software interrupt called', 13, 10, '$'
+s3  byte    '[info] exiting', 13, 10, '$'
+
+isr1    proc
+    push    eax
+    mov     hw, 0
+    mov     eax, dr6
+    test    eax, 1
+    jz      @f
+
+    xor     eax, eax        ; breakpoint hits, clear dr7
+    mov     dr7, eax        ; exception class = fault
+    mov     hw, 1
+@@:
+    mov     eax, 10000h     ; clear dr6 except bit 16
+    mov     dr6, eax
+    pop     eax
+    iret
+isr1    endp
+
+talk    proc
+    mov     dx, offset s2
+    test    hw, 1
+    jz      @f
+    mov     dx, offset s1
+@@:
+    mov     ah, 9
+    int     21h
+    ret
+talk    endp
+
+xchgIv1:
+    push    eax
+    push    es
+
+    xor     ax, ax
+    mov     es, ax
+    mov     eax, dword ptr iv1
+    xchg    eax, es:4
+    mov     dword ptr iv1, eax
+
+    pop     es
+    pop     eax
+    ret
+xxx ends
+    end s
+```
+
 ## masm 语法
 
-.|.
+- 610guide = Programmer's Guide Microsoft MASM Assembly-Language Development System Version 6.1 For...
+
+|||
 -|-
-reserved words              | cpu 厂商规定的指令助记符<br>masm 规定的指示 directives, 属性 attributes, 操作符 operators, 预定义符号 predefined symbols
+reserved words              | 610guide, Appendix D MASM Reserved Words<br>cpu 厂商规定的指令助记符<br>masm 规定的指示 directives, 属性 attributes, 操作符 operators, 预定义符号 predefined symbols
 identifier                  | at most 247 chars, 248+ error A2043: identifier too long<br>first char: $?@_a-z<br>rest chars: first char plus 0-9<br>after `option dotname`, first char can be .<br>masm keywords can use % as first char
 line                        | at most 512 chars, 513+ error A2039: line too long
 integer constants           | 9, 1b, 1y, 7o, 7q, 9d, 9t, 0fh<br>字面量基数不是 16 时可以用 b, d 后缀; `.radix constexpr` 改变此后字面量的基数; 不能以 16 进制的字母打头, 需要前缀 0<br>"abc", 'abc': 串里字符的 ascii, "abc" = 979899, 唯一的转义是两个引号表示一个引号
 floating-point constants    | 2.523E1, -3.6e-2, 5.<br>always evaluates digits of real numbers as base 10<br>can also specify the encoded format with hexadecimal digits, end with r, cannot be signed: 3F800000r
 text constants              | < some text >
+operators                   | qh/contents/assembly/operators
 constant expressions        | constexpr. integer constants and optionally operators
 expressions                 | constant expressions, labels, types, registers, and their attributes
-
-intel 在有效地址里使用了表达式, 其在运行时求值因此不是常量表达式.
-
-### constexpr
-
-operators
-
-结构名似乎也是 constant, 因为定义变量时 dup 前面可以放结构名.
 
 ### 宏
 
@@ -4156,7 +4833,7 @@ see /macros.md
 
 ### 完全段
 
-在 8086 上必须用段寄存器 + 通用寄存器表示地址, 意味着如果程序 > 64k 就一定有调整段寄存器的操作. masm 把程序设计为好几个不大于 64k 的块, 称作段或逻辑段. 段名保存段地址, 程序运行时可以给段寄存器设置不同的段地址以访问所有段里的内容. 具体实现却混乱繁琐, 文档也含糊不清. masm 段的一个功能是设置 3 个段寄存器中的 1 到 2 个: 依赖一堆设定的简化段用 .startup 设置 ss:sp 和 ds; 完全段栈段的地址是 ss:sp. 可能是对自己设计的段相当满意, masm 要求代码必须写段. 文档 Chapter 2 Organizing Segments 提到了定义段的 2 种方式, 简化段和完全段, 可以混用. 文档 = masm 6.1 programmer's guide. 下面介绍这两种写法, 它俩包含的大多特性都不常用.
+8086 用段寄存器 + 通用寄存器表示地址, 意味着如果程序 > 64k 就一定有调整段寄存器的操作. masm 把程序设计为好几个不大于 64k 的块, 称作段或逻辑段. 段名是段在源代码里的偏移, 并做了标记在执行时由 loader 填充为实际地址, 程序运行时可以给段寄存器设置不同的值以访问所有段里的内容. 具体实现却混乱繁琐, 文档也含糊不清. masm 段的一个功能是设置 3 个段寄存器中的 1 到 2 个: 依赖一堆设定的简化段用 .startup 设置 ss:sp 和 ds; 完全段栈段的地址是 ss:sp. 可能是对自己设计的段相当满意, masm 要求代码必须写段. 610guide, Chapter 2 Organizing Segments 提到了定义段的 2 种方式, 简化段和完全段, 可以混用.
 
 ```
 name SEGMENT [[align]] [[READONLY]] [[combine]] [[use]] [['class']]
@@ -4179,7 +4856,7 @@ combine     |                       | 是否和其他文件的同名段组合. �
 |           | STACK                 | 组合为栈
 |           | COMMON                | 叠放, 大小 = 参与组合中最大的大小
 |           | AT address            | 段内只能放类型定义, 不能放数据, 用于按结构访问已知的内存; 保护模式不能用
-use         | USE16, USE32, FLAT    | 386+
+use         | USE16, USE32, FLAT    | word size = 16, 32, flat 是 32 并带一些 assume
 'class'     |                       | link 把类名相同的段按看到的顺序放一起
 
 combine 作用于多个文件里的同名段, 文档说同名不同类名的段不组合, 指的应该是不同文件里的段:
@@ -4201,13 +4878,15 @@ combine 作用于多个文件里的同名段, 文档说同名不同类名的段�
     - class 不同不组合
     - 记得有种情况 file2 cs1 第 1 句的偏移是 aligns + len(cs2), 是记错了吗?
 
-directive | obj 里段的顺序 - 摘抄, 我不知道用法
+directive | obj 里段的顺序
 -|-
 .SEQ    | default. 按源文件中声明的顺序
 .ALPHA  | 按字母序, 用于兼容老的 ibm 汇编器; 如果运行老的汇编书里的代码有问题, 使用这个
 .DOSSEG | code segments<br>data segments not in class BSS or STACK<br>data segments class BSS<br>data segments class STACK
 
-收集, 挨着放, 类, 组合, 这些放置规则已经够乱了, masm 又规定了一种: group. 文档 Defining Segment Groups 说
+link 安排输出文件里段的顺序时先看是否有 .dosseg 放入 obj 的特殊记录, 没有的话按 obj 的顺序.
+
+如果定义了很多段使用时就要频繁修改段寄存器, masm 的 group 把这些段视作 1 个段, group 是段值, 相应修改组里标签的偏移. 610guide, Defining Segment Groups:
 
 - `name GROUP segment [[, segment]]...`
 - group 语句可以追加段, 所以无需用 1 个 group 语句包含组里的所有段
@@ -4215,11 +4894,75 @@ directive | obj 里段的顺序 - 摘抄, 我不知道用法
 - 一个段只能在一个组里
 - 组不能同时包含 16 位和 32 位段
 
-稍作实验发现 group 里的段会由于 align 产生间隔. group 和 class 有啥不同? 我能想到的有
+```
+; ml -Foout\ dd.msm -Feout\ -AT
+
+xxx segment
+s:
+    mov ax,           ds:l01    ;   b80000     mov ax, 0000
+    mov ax,          g01:l01    ;   b83000     mov ax, 0030
+    mov ax, word ptr  ds:l01    ;   a10000     mov ax,[0000]
+    mov ax, word ptr g01:l01    ; 2ea13000 cs: mov ax,[0030]
+
+    mov ax,           ds:l02    ;   b84000     mov ax, 0040
+    mov ax,          g01:l02    ;   b84000     mov ax, 0040
+    mov ax, word ptr  ds:l02    ;   a14000     mov ax,[0040]
+    mov ax, word ptr g01:l02    ; 2ea14000 cs: mov ax,[0040]
+
+    mov ax, offset       l01    ;   b80000     mov ax, 0000
+    mov ax, offset    ds:l01    ;   b80000     mov ax, 0000
+    mov ax, offset   g01:l01    ;   b83000     mov ax, 0030
+    mov ax, offset       l02    ;   b84000     mov ax, 0040
+    mov ax, offset    ds:l02    ;   b84000     mov ax, 0040
+    mov ax, offset   g01:l02    ;   b84000     mov ax, 0040
+    ret
+xxx ends
+
+d01 segment
+l01:
+    word    7 dup (3412h)
+d01 ends
+d02 segment
+l02:
+    word    7 dup (12h)
+d02 ends
+
+g01 group   xxx, d02
+    end s
+```
+
+group 和 class 里的段会由于 align 产生间隔. 它俩有啥不同? 我能想到的有:
 
 - group 定义了个名字, 可以视为 1 个段; class 是挨着放的多个段, 虽不定义名字但显然能用 class 里第一个段的名字
-- group 不能大于 64k, class 无此限制是因为 class 没有把段组合
+- group 不修改段在源代码里的顺序, class 修改
+- group 不能大于 64k, class 无此限制因为它不使用统一的段寄存器
 - group 有没有 align 类型? 有的话, 可能就是组里第一个段的 align
+
+assume 对其后的代码生效, 改变 masm 的假设, 作用看来看去就是避免 masm 生成汇编错误. 有两个目标:
+
+- 段寄存器. 改不了 cs, 一般改的是 ds. 当你设置好 ds 准备使用时, 如果不加 assume 可能遇到汇编错误
+- 通用寄存器. 给它加一个类型用于访问结构里的字段
+
+示例
+
+- 没有 assume 时 masm 在 mov 前加 cs:, 机器码 2e; 但 com 的 cs = ds = es = ss, 2e 是多余的前缀
+- 简化段 .code 会生成 assume ds: xxx
+- i 是 byte, masm 要求 mov ax, i 有 word ptr, 但从指令看 ax 明确要求 word 所以不需要, masm 生成的指令 a10401 里也没有, cv 的反汇编里有
+- com 文件没写 org, 就需要自己给标签 +0x100 的偏移
+
+```
+; ml -Foout\ dd.msm -Feout\ -AT
+
+    assume  ds: xxx
+
+xxx segment
+s:  mov ax, word ptr i + 256
+    ret
+
+i   byte    ?
+xxx ends
+    end s
+```
 
 at 示例
 
@@ -4229,7 +4972,7 @@ at 示例
 xxx segment
 s:
     call at0:lab ; call 0:0
-    jmp   es:lab ; jmp  0:0
+    jmp   ds:lab ; jmp  0:0. also es:, ss:
 xxx ends
 at0 segment at 0
 lab:
@@ -4237,18 +4980,31 @@ at0 ends
     end s
 ```
 
-https://stackoverflow.com/questions/45124341/effects-of-the-flat-operand-to-the-segment-directive
+flat
 
-### 简化段, memory model, dgroup, assume
+- https://stackoverflow.com/questions/45124341/effects-of-the-flat-operand-to-the-segment-directive
+- qh/press 's' (search)/flat/description of flat
+    - produces files with the .exe extension
+    - near code, near data. @codesize = 0, @datasize = 0, @model = 7
+    - all segment registers are set to the same value
+    - assume cs:flat, ds:flat, ss:flat, es:flat, fs:error, gs:error
 
-- .model: `.MODEL memorymodel [[, modeloptions ]]`, 其余简化段指示依赖此指示<br>
-    定义组 dgroup, 一部分没有指定组的简化段会放到 dgroup 组
-- .startup: 添加 @Startup:, 生成语句把 ds, ss 设置为 dgroup 的段地址; 把 end 替换为 end @Startup
-- .exit n: mov al, n int21h/ah4ch
-- .code, .const, .data, .data?, .fardata, .fardata?, .stack: .stack 不关闭前面的简化段. 会生成诸如 fn_text (far code) or _text (near code) segment word, fn = @filename, 是 8.3 文件名的左边 8 个字符; const segment word; _data segment word; _bss segment word; far_data segment para; far_bss segment para; 和一些 assume 语句. 详细定义在文档 Appendix E Default Segment Names, 依然是残缺不全的信息
-- 预定义符号 @curseg 保存当前的段名, `% echo @curseg` 打印段名, `@CurSeg ends` 关闭当前段
+### 简化段
 
-.model 的 memorymodel 定义了几种安排段的方式, masm 根据 memory model 修改简化段生成的代码, 以控制段的组合, 给段寄存器设置相应的值. wikipedia 把它称为 intel memory model.
+|||
+-|-
+.model      | `.MODEL memorymodel [[, modeloptions ]]`, 其余简化段指示依赖此指示<br>定义组 dgroup, 一部分没有指定组的简化段会放到 dgroup 组<br>详细定义在 610guide, Appendix E Default Segment Names, 依然是残缺不全的信息
+.startup    | 以及 .exit n 见后面的示例
+.code       | fn_text (far code) or _text (near code) segment word, fn = @filename, 是 8.3 文件名的左边 8 个字符
+.const      | const     segment word, assume xxx
+.data       | _data     segment word, assume xxx
+.data?      | _bss      segment word, assume xxx
+.fardata    | far_data  segment para, assume xxx
+.fardata?   | far_bss   segment para, assume xxx
+.stack      | 不关闭前面的简化段
+@curseg     | 预定义符号 @curseg 保存当前的段名, `% echo @curseg` 打印段名, `@CurSeg ends` 关闭当前段
+
+.model 的 memorymodel 定义了几种安排段的方式, masm 根据 memory model 修改简化段生成的代码以控制段的组合和设置段寄存器. wikipedia 把它称为 intel memory model, 我没看出来这和 intel 有啥关系.
 
 memorymodel | @model | @codesize | @datasize | more nonsenses
 -|-|-|-|-
@@ -4258,15 +5014,15 @@ medium  | 3 | 1 | 0 | "supports n code segment, 1 data segment"
 compact | 4 | 0 | 1 | "supports 1 code segment, n data segment"
 large   | 5 | 1 | 1 | "supports n code segment, n data segment"
 huge    | 6 | 1 | 2 | "essentially the same as large"
-flat    | 7 | 0 | 0 | 不是 mz, 32 位保护模式 win nt exe, 32 位地址, 不用段寄存器
+flat    | 7 | 0 | 0 | 不是 mz, 32 位保护模式 win nt exe, 32 位地址
 
 - all defaults can be overridden
 - huge implies that individual data items are larger than a single segment, but the implementation of huge data items must be coded by the programmer
 - const, _bss, far_data, far_bss 总是产生段, tiny 下这些段放在那个唯一的段里
-- 什么叫 supports 1 code segment, 1 data segment? 应该指多个源文件时生成的段, 大致像这里讲的, 文档 Far Code Segments
+- 什么叫 supports 1 code segment, 1 data segment? 应该指多个源文件时生成的段, 大致像这里讲的, 610guide, Far Code Segments (*)
     > In the larger memory models, the assembler creates a different code segment for each module. If you use multiple code segments in the small, compact, or tiny model, the linker combines the .CODE segments for all modules into one segment.
 
-    文档这部分充斥着错误, 随便做个实验都能得出不同结论. 比如文档说 large model .code first 生成 first_text, 实际生成 first; 说 large model 每个代码段是单独的段, 实际只有用 .startup 才导致两个段, 等等. 完全看不下去
+(*) 文档这部分充斥错误, 随便做个实验都能得出不同结论. 比如文档说 large model .code first 生成 first_text, 实际生成 first; 说 large model 每个代码段是单独的段, 实际只有用 .startup 才导致两个段, 等等. 完全看不下去
 
 modeloptions | value | explanation
 -|-|-
@@ -4275,15 +5031,16 @@ language || @interface<br>sets calling and naming conventions for procedures and
 || c, syscall   | same calling convention, different naming convention
 || stdcall      | used by windows api
 stack distance || @stack
-|| nearstack    | default. stack and data in 1 physical segment (dgroup)<br>.startup sets ss = ds; if not use .startup you must set it
-|| farstack     | used by tsr, dll<br>stack does not grouped with dgroup, thus ss != ds
+|| nearstack    | default. stack and data in 1 physical segment (dgroup), .startup sets ss = ds
+|| farstack     | stack does not grouped with dgroup, thus ss != ds. used by tsr, dll
 
 .startup 和 .exit
 
-```
 - do not use them in flat
 - .startup causes end to ingore it's arg. 指示可以修改任意代码, 不像宏仅限于自己那一块
+- 在 nearstack 里 ss 减少了 ss - DGROUP, sp 要加上 (这个值 * 16) 才能保持 ss:sp 不变
 
+```
 .startup
     ; nearstack, .8086/.186     ; nearstack, .286+              ; farstack
     @Startup:                   @Startup:                       @Startup:
@@ -4299,227 +5056,147 @@ stack distance || @stack
         mov ss, dx                  mov ss, dx
         add sp, bx                  add sp, bx
         sti
-        ; ...                   ; ...                           ; ...
-    END @Startup                END @Startup                    END @Startup
+    ; ...                       ; ...                           ; ...
+        END @Startup                END @Startup                    END @Startup
 
-.exit value             .exit
-    mov al, value
-    mov ah, 4Ch             mov ah, 4Ch
-    int 21h                 int 21h
+.exit value                 .exit
+        mov al, value
+        mov ah, 4Ch                 mov ah, 4Ch
+        int 21h                     int 21h
 ```
-
-assume 示例
-
-```
-; ml -Foout\ dd.msm -Feout\ -AT
-
-xxx     segment
-        assume  ds: xxx
-; 1. 没有 assume 时 masm 在 mov 的前面加 cs:, 机器码 2e; 但 com 的 cs = ds = es = ss, 2e 是多余的前缀
-; 2. 如果使用简化段 .code 则无需 assume ds: xxx, 因为 .code 会生成 assume 语句
-; 3. i 是 db, masm 要求 word ptr; 而 mov ax 明确要求 word, 所以指令不需要 word ptr, masm 生成的指令里也没有
-; 4. com 文件没写 org, 就需要自己给标签 +0x100 的偏移
-s:      mov     ax, word ptr i + 100h
-        mov     ah, 4ch
-        int     21h
-i       db      ?
-xxx     ends
-        end     s
-```
-
-### ptr, coercion
-
-masm 关键字 ptr 是 pointer 的缩写, 有两种意义, 一种在 masm 外也常见, 这里说这种; 另一种是 masm 发明的, 在 "变量" 里说.
-
-```
-debug
--a
-1337:0100 mov           [200] , byte        3
-1337:0105 mov           [103] , word ptr    3
-1337:010B mov word      [200] ,             3
-1337:0111 mov           [200] , dword ptr   3
-1337:0116 mov           [200] , qword       3
-1337:011C mov tbyte ptr [200] ,             3
-1337:0121
--u
-1337:0100 C606000203    MOV     BYTE PTR [0200],03
-1337:0105 C70603010300  MOV     WORD PTR [0103],0003
-1337:010B C70600020300  MOV     WORD PTR [0200],0003
-1337:0111 C606000203    MOV     BYTE PTR [0200],03
-1337:0116 C70600020300  MOV     WORD PTR [0200],0003
-1337:011C C606000203    MOV     BYTE PTR [0200],03
--q
-```
-
-- size ptr 可以写在立即数或内存前, 实际会放在内存前
-- debug 不认识 dword, qword, tbyte, 并且 16 位模式也不支持 mov 这种长度
-
-这种 ptr, x86 指令集里没有, 各种反汇编里经常见, 用 debug 写汇编时可以省略, debug 的反汇编也使用它.
-
-谁发明的? 网上没找到答案.
-
-干嘛使? `mov size memory, immediate` 解决这个问题: 汇编器看到 `mov memory, immediate` 时不知道 memory 指出的是 byte, word 或其他, 也就不知道该汇编成哪个 opcode, 所以需要额外的词 - size - 去说明: `mov word ptr [bx], 5`, debug 里可写为 `mov word [] bx, 5` 或 `mov [] word bx, 5`. mov byte, move word 是不同的指令. 能从操作数确定长度比如 mov bx, 3 时无需说明长度, 汇编器会生成正确的 opcode, 无法确定时才需要说明.
-
-要点是 size ptr 或 size 用来限定地址指向的内存的长度. size ptr memory 或 size memory 把 memory 限定为 m8/16/32/64. intel 把 offset 叫 memory, 把 segment:offset 叫 far pointer; 但有些人把 offset 也叫 pointer, 所以 memory 或 m8/16/32/64 也叫 pointer, ptr 用来限定 memory 的长度, 也可以叫 pointer.
-
-http://www.phatcode.net/res/223/files/html/Chapter_8/CH08-4.html 看完网页后想看看是啥书, 一看是 Randall Hyde 的 the art of assembly language programming. 记得以前照该书写过一些练习代码, 现在找不到了. Randall Hyde 把限定长度的操作叫 coercion. 后来有一天看到 https://stackoverflow.com/questions/8857763/what-is-the-difference-between-casting-and-coercing, accepted answer 说 word ptr 这样的操作叫 conversion 或 cast, 就是不叫 coercion, coercion 是 implicit conversion. 再看其他答案是各有说法. 看来 coercion 在不同人那里有不同定义.
 
 ### 标签
 
-写代码时经常需要 jump 到某条语句. 假设跳到第 42 句, 这位置 42 很可能在写代码时多次变动, 就要不断修改代码里的 42; 42 是 1 个位置, 代码里往往用到多个位置, 每个位置都需要此过程. 这纯粹是不必要的麻烦, 程序员希望用占位符表示位置, 由程序做符号到位置的转换工作. 最好是 cpu 能理解符号以完成转换, 但 intel cpu 不理解, 那就只能靠汇编器. masm 支持汇编里已有的标签概念, 可以用符号标记位置, 汇编时用符号处的位置替换符号以组成 cpu 指令.
+- `lb1:` under `option noscoped`, default, visible within file (module)
+- `lb1:` under `option scoped`, visible inside a proc block, can not be public; visible within file elsewhere
+- `lb2::` visible within file, can be declared public
+- `@@:` 定义一个只能通过其上下的 @f (forward, 下一个 @@) 和 @b (back, 上一个 @@) 访问的标签
 
-masm 的 @@ 定义一个只能通过其上下的 @f (forward, 下一个 @@) 和 @b (back, 上一个 @@) 访问的标签
-
-写代码时还经常需要保留一些内存位置往里面放计算结果. intel 没有这种语法, 只能用指令占据内存位置, 并安排代码不执行这块占据的内存; 用指令占据的内存值只能是指令, 即没办法初始化以这种方式保留的内存. masm 的 data allocation 语法 `type initializer [, initializer]...` 用 db, dw, dd 等保留一些可以初始化的内存. 要引用保留的内存可以往它前面放一个标签, masm 规定标签和 data allocation 不能在同一行, 例子
+写代码时经常需要保留一些内存位置放计算结果. intel 没有这种语法, 只能用指令占据内存位置并安排代码不执行这块内存; 用指令占据的内存值只能是指令, 即没办法初始化以这种方式保留的内存. masm 的 data allocation 语法 `type initializer [, initializer]...` 用 db, dw, dd 等保留一些可以初始化的内存, 可以在它前面放标签, masm 标签和 data allocation 不能在同一行. 例子:
 
 ```
 someWords:
     word 3 dup (21) ; 用 21 初始化 word, 重复 3 次. 假设 (1, 2, 3), 就是把 1, 2, 3 重复 3 次得到 9 个 word
 ```
 
-标签和保留内存都是很实用的功能, 不是 masm 的发明但 masm 支持它们, 至此可以说很完美. 但 masm 可能是想在汇编的基础上创造一种静态强类型的语言, 可能还试图兼顾同其它 microsoft 语言的 "互操作性", 即在这个语言里调用那个语言定义的函数, 于是在标签和保留内存的基础上做了大量狗尾续貂的工作, 得到了既难以理解又难以使用的变量和静态类型. 作为发明变量和静态类型之前的热身工作, masm 首先给标签添加了很多限制.
+标签有段值但 masm 说它是 near label, 相应的 far label 必须写做 `(段寄存器 or 段名):标签名`, 段寄存器和段名可以是除了 cs 和当前代码段外的任意值, masm 不读取段的值, 直接生成标签地址 ptr16:16. proc 也定义一个标签, 主要与 call 和 ret 配合. intel 的 call 和 ret 非常简陋, near call 往栈上放 offset, far call 放 segment:offset, near 和 far 通过操作数区分; ret 根本表达不了 near 和 far, 汇编器必须自己想办法.
 
-label, assemblies to `immediate`, syntax:
+ret | opcode | meaning
+-|-|-
+ret imm16   | c2 | near return, pop imm16 bytes
+ret         | c3 | near return
+ret imm16   | ca | far  return, pop imm16 bytes
+ret         | cb | far  return
 
-- `lb1:`
-    - under `option noscoped` (default), lb1 is visible within file (module)
-    - under `option scoped`, lb1 is visible inside a proc block, can not be public; visible within file elsewhere
-- `lb2::` lb2 can be declared public; visible within file
+masm 的办法是:
 
-冒号定义的 label 虽有段地址但 masm 说它是 near label, 要使用段外标签得写 `(段寄存器 or 段名):标签名`; 段寄存器的名字和值都不重要, masm 知道标签的地址, 不会读取段寄存器; 段名要匹配; masm 要看到这种写法才会生成 jmp ptr16:16. 有段地址的 near label 用起来很方便, 但专用于过程的标签 proc 却很不方便. 判断一个过程是远还是近被 intel 和 masm 做成了垃圾
-
-- 最省事的做法是匹配的 call 和 ret. 这就不需要知道距离了, 但 intel 的 call 和 ret 做不到, 自定义代码效率低, 可以做到
-- 其次可以根据调用方的位置确定 call 和 ret. masm 没这么做, 可能是怕调用处的代码导致修改返回语句, 而 masm 不知如何解决
-- 其次可以根据 retn 和 retf 决定过程的距离. masm 也没这么做, 可能是想逼人使用自己发明的各种声明
-- masm 做成了: 在定义里自述. 既不能根据调用方的位置调整远近, 也保证不了 far 和 retf, near 和 retn 的对应关系
-
-于是造成很多无用的场景
-
-- 近调用 段内 近过程? ok
-- 近调用 段内 远过程? 实现不了, masm 总是对远过程生成远调用
-- 远调用 段内 近过程? masm 把 `call cs:pn` 汇编为 `push cs; call rel16`, 把 `call ds/es/ss:pn` 汇编为 `call ptr16:16`
-- 远调用 段内 远过程? ok
-- 近调用 段外 近过程? 近调用不修改 cs, 无法调用段外过程
-- 近调用 段外 远过程? 同上
-- 远调用 段外 近过程? 近过程使用 retn, 返回时不修改 cs 所以会返回到错误的地址
-- 远调用 段外 远过程? ok
+- 发明 retn, retf
+- ret 在 near proc 里视为 retn, far proc 里视为 retf; 未指定 proc 的 distance 时看 memory model; 没有时是 near
+- proc 外的 ret 是 near
+- call cs:pn 汇编为 `push cs; call rel16`, call ds/es/ss:pn 汇编为 `call ptr16:16`.
 
 ```
 ; ml -Foout\ dd.msm -Feout\
 
 cs1 segment
 s:
-    ; error A2107: cannot have implicit far jump or call to near label
-    ; the error is reasonable because a near proc is likely using near return
-    ; call cs2label
-    ; call cs2proc
+    ; call label1               ; error A2107: cannot have implicit far jump or call to near label
+    ; call nearproc             ; error A2107: cannot have implicit far jump or call to near label
+    ; call cs :nearproc         ; error A2074: cannot access label through segment registers
+    ; call cs1:nearproc         ; error A2074: cannot access label through segment registers
 
-    call cs2pf ; ok, call a far proc
+    call ds :label1             ; 9a0000c10c call 0cc1:0000
+    call ss :nearproc           ; 9a0100c10c call 0cc1:0001
+    call ss1:nearproc           ; 9a0100c10c call 0cc1:0001
+    call cs2:nearproc           ; 9a0100c10c call 0cc1:0001
+    call farproc                ; 9a0200c10c call 0cc1:0002
 
-    ; any segment override is ok, masm don't even read the segment register
-    call ds:cs2label
-    call ss:cs2proc
+    ; call  word ptr ss:farproc ; 36ff160200 ss: call     [0002]
+    ; call dword ptr ss:farproc ; 36ff1e0200 ss: call far [0002]
 
-    ; segment name must match
-    call cs2:cs2proc
-
-    ; the program will not get to here because of far call to near label, so no int33/ah4ch needed
+    mov ax, 4c00h
+    int 21h
 cs1 ends
+
 cs2 segment
-
-cs2label:
-    retn
-
-cs2proc proc
-    retn
-cs2proc endp
-
-cs2pf   proc far
+label1:
     retf
-cs2pf   endp
-
+nearproc    proc
+    retf            ; only in this sample: to properly return to caller
+nearproc    endp
+farproc     proc far
+    ret             ; assembles to retf
+farproc     endp
 cs2 ends
+
 ss1 segment stack
-    dw 16 dup (3333h)
+    word    16 dup (3333h)
 ss1 ends
     end s
 ```
 
-### relocation
-
-标签代表的位置汇编时就确定了, 代码假设了运行时的地址, 非常死板. 汇编得到的可执行文件只能加载到固定地址, 如果希望的内存位置已经存放了别的东西就无法加载. 解决办法有 2 个部分
-
-- 段. 汇编时不固定段地址, 在文件头里保存段的信息, 加载器填充这些信息所以程序运行时能知道实际的段地址
-    - masm 的 com 不能用段名, 可能是因为 com 没有文件头没法保存段名
-- 偏移.
-    - com 运行时偏移是 256, 针对的解决办法是 org 100h, 只能对付写代码时就知道运行偏移是 256 的情况. 不是解决办法
-    - intel 的相对偏移 rel16/32/64 是个好思路, 但只能是 immediate, 把标签的值保存在比如寄存器里就不再是 rel 了. 不是解决办法
-    - 解决办法是 position independent code, https://stackoverflow.com/questions/599968/reading-program-counter-directly
-        ```
-            call _here
-        _here:
-            pop eax ; eax now holds the PC.
-        ```
-        on newer cpus call rel32 (0) 不影响 return-address predictor stack, http://blog.stuffedcow.net/2018/04/ras-microbenchmarks/#call0
-
-org n 的作用
-
-- 把其后的语句放在可执行文件的代码部分的第 n 字节; 若造成该语句后移, 用 0 填充之间的部分; 相应调整标签的值
-- 多个源文件, 或生成的不是 com 时 org 可能偏大 http://support.microsoft.com/kb/39441/en-us
-- 生成 com 文件 && 使用了 org && 其后的语句被 end 标为起始地址 && 将生成 > 256 字节的可执行文件<br>
-    则删除起始地址前面的内容, 参考 [起始地址](#起始地址)/com 文件的起始地址
-
-### 变量, 静态类型
-
-标签是代表地址的符号, 汇编时替换成 offset, offset 是数字而不是名字, 要使用 offset 处的值而不是 offset 就得用方括号标记标签, masm 不支持这种写法. 如果把标签替换成 [offset], 那从代码的角度看标签就是变量了. masm 就这样定义了变量, 并趁机把变量叫 data label, 标签改叫 code label. masm 尽量把 code label 汇编为没有方括号的 offset (但当做不到的时候, 它给你胡乱生成一条语句), data label 汇编为方括号括起来的 offset. 因此 masm 标签基本不需要写方括号, 写了也基本没用, 这就是前面说 masm 不支持 [代码标签] 这种写法的原因. `seg lb` 和 `offset lb` 用于获取数据标签的地址, 没有获取代码标签处值的语法. code label 的汇编结果是,
+masm 忽略标签周围的方括号, 要使用标签处的值必须写 size ptr.
 
 ```
 ; ml -Foout\ dd.msm -Feout\ -AT
 
+    assume  ds: xxx
+
 xxx segment
-    assume ds: xxx
 s:
-    mov ax, s             ; MOV AX,0000
-    mov ax, [s]           ; MOV AX,0000
-    mov ax, 1[s]          ; MOV AX,0001
-    mov ax, [s + 1]       ; MOV AX,0001
-    mov ax, [s + bx + 1]  ; MOV AX,[BX+0001]    <- this is  somewhat  absurd
-    mov ax, [s + dx + 1]  ; MOV DI,[BX+SI+0001] <- this is absolutely absurd
+    mov ax, s               ; b80000   mov ax,0000
+    mov ax, [s]             ; b80000   mov ax,0000
+    mov ax, 1[s]            ; b80100   mov ax,0001
+    mov ax, [s + 1]         ; b80100   mov ax,0001
+    mov ax, [s + bx + 1]    ; 8b870100 mov ax,[bx+0001]     <- ?
+    mov ax, [s + dx + 1]    ; 8bb80100 mov di,[bx+si+0001]  <- ???
+
+    mov ax, word ptr s      ; a10000   mov ax,[0000]
+    ret
 xxx ends
-end s
+    end s
 ```
 
-data label, a.k.a. variable, assemblies to `[immediate]`, syntax:
+前面说的 data allocation 语法可以定义 data label, 也叫变量, 有 2 种形式. 与之相对, 前面一直说的 label 叫 code label. 与 code label 相反, masm 总是给 data label 加方括号, 要取其偏移需要写 offset.
 
 - `[name] type initializer [, initializer]...`
 - `name label qualifiedtype`
 
-首先注意到两个意料之外的东西: `label` 和 `qualifiedtype`, 待会儿再说, 先说第 1 种定义方法. 假设有 `i byte ?`, masm 说变量 i 具有类型 byte, 结果是
-
-- `mov ds:200, byte ptr 3`, 200 换成 i 后可以写 `mov i, 3` 或 `mov i, byte ptr 3`
-- `mov ds:200, word ptr 3`, 200 换成 i 后必须把 cast 放 i 前面, 不能写 `mov i, word ptr 3`
-- `mov ax, ds:200` 毫无歧义, 但 200 换成 i 后要写 `mov ax, word ptr i`
-
-定义变量时使用了 type, 使用变量时 masm 查看代码是否写了 cast, 写的话就保留, 不写的话加上 type ptr, 得到 type ptr [offset], 可以看到 masm 记录了变量的长度和偏移. 它的目的不是长度匹配时省一个 `长度 ptr`, 而是长度不匹配时产生汇编错误. 这纯粹是制造困难, 但该困难顶了个迷惑性的名字让人捉摸不透, 不敢妄下定论: 静态类型. 拥护静态类型的人很多.
-
-既然数据标签 name 表示符号形式的地址 name 指向的值, 那么 [name] 就表示 name 指向的值指向的值, 即先取 name 处的值作地址, 再取该地址处的值; 和寄存器用法一致. 但在 masm 中 [name] 和 name 一模一样都是 [offset], 可能是因为 masm 考虑了 intel 的 "一句话只有一次内存访问", 没办法在一句话里先取 name 处内存的值, 再取该值处内存的值, 所以 name = [name] = [[[[name]]]], [ax] = [[[[[[[[[[[ax]]]]]]]]]]]; 而 ax 是寄存器地址, 不读内存, [ax] 先读寄存器再读内存, 所以 ax != [ax]. 这给程序员带来极大困扰, 无论能否意识到, 它都会在每次遇到时实实在在消耗一部分脑力:
-
-- 有时需要方括号有时不需要; 带方括号时可能没用上, 没带时可能用上了
-- 一个强调静态类型, 动不动汇编错误的语言, 在方括号上这么随意?
-
-masm 随意修改方括号的行为还染指了立即数, 把 `mov [200], word ptr 3` 解释为 `mov 200, word ptr 3`, 然后报告 error A2001: immediate operand not allowed. 为纠正这 masm 造成的错误, 必须把 [200] 写为 ds:[200] 或 ds:200, 例如 `mov ds:200, word ptr 3`.
-
-第 2 种定义数据标签的方法是 `label`, 需要先了解 qualified type.
-
-microsoft code view 4.01 help/contents/assembly/directives/typedef/qualified type
-
 ```
-name typedef qualifiedtype
-name typedef proto prototypelist
+; ml -Foout\ dd.msm -Feout\ -AT
+
+    assume  ds: xxx
+
+xxx segment
+s:
+    mov ax,          ab1    ; a11000 mov ax,[0010]
+    mov ax, word ptr ab2    ; a11000 mov ax,[0010]
+    mov ax, word ptr ab3    ; a11100 mov ax,[0011]
+    mov ax,          ab4    ; a11200 mov ax,[0012]
+
+    mov ax, offset   ab3    ; b81100 mov ax,0011
+    ret
+
+ab1 label   word
+ab2 byte    ?
+ab3 byte    ?
+ab4 word    ?
+xxx ends
+    end s
 ```
 
-- qualified type: structures, unions, records, any intrinsic type, [distance] ptr [qualifiedtype], types defined by typedef<br>
+- qh/press 's' (search)/typedef
+    - `name typedef qualifiedtype`
+    - `name typedef proto prototypelist`
+- qh/contents/assembly/directives/complex data types/typedef/qualified type
+- qh/press 's' (search)/qualifiedtype
+    - structures, unions, records, any intrinsic type
+    - `[distance] ptr [qualifiedtype]`
+    - types defined by typedef
 - distance: optional. defaults to data pointer or code pointer of current memory model, .model defaults to small, small is near ptr
+
+> 610guide, Chapter 3 Using Addresses and Pointers<br>
+A pointer is a variable that contains an address as its value.
 
 use | example
 -|-
@@ -4531,75 +5208,70 @@ with the extern and externdef directives        | extern pMsg: far ptr ptr byte
 with the typedef directive                      | ppbyte typedef ptr pbyte
 with the assume directive (added by me)         | assume bp: ptr some-struct-instance
 
-看例子恨不得每个都是 ptr 就能猜到创造 qualified type 就是为了塞进 ptr, 但这个对 masm 如此重要的 ptr 却不能放在正常的数据定义语法里定义数据, 只能通过 typedef 定义某个 ptr type, 然后使用这个特定 type 的 ptr. 那么多 masm 发明的犄角旮旯里都能用 ptr, 只有那唯一常用的语法里不能... 不过, 我完全不想了解这种设计的原因.
-
 http://www.phatcode.net/res/223/files/html/Chapter_5/CH05-1.html#HEADING1-197 说 `typename typedef near ptr basetype` 或 `typename typedef far ptr basetype`, basetype 可以省略, 仅供 cv.exe 使用, 按 basetype 显示 typename 变量指向的值. 这说法和文档以及 cv help/contents/assembly/operators/miscellaneous/ptr 一致, 但我调整了 cv 的 source1 窗口设置后仍找不到哪里能看这个按 basetype 显示的值.
-
-> 文档 Chapter 3 Using Addresses and Pointers<br>
-A pointer is a variable that contains an address as its value.
-
-masm 说 xxx typedef ptr 定义的新类型 xxx 是 ptr void; masm 用 void 或 ptr void 表示自己可以和其它 microsoft 语言交互; 纯粹的累赘概念, 看看就行. intel 说 m16 保存 word, m16:16 保存 ptr16:16 而不仅仅是 dword, 这种不对称的定义也造成了混乱. masm near ptr 的 offset 就是 m16, far ptr 的 offset 是 m16:16; near ptr byte/word/... 和 far ptr byte/word/... 的 offset 没有相应的 intel 操作数类型. masm 不根据 ptr 类型产生汇编错误, 所以任何地方都不需要 ptr; word 和 dword 分别对应 near 和 far ptr 就行, 这一点做得对.
-
-`npt typedef near ptr byte; t1 npt 1111h`, 设 t1 的地址是 ds:10, 有
-
-- 变量 t1 = 偏移 10; 10 在 16 位模式里是 imm16 和 m16
-- masm 认为 0x1111 是 near ptr, 即 offset; offset 是 word 所以 t1 汇编为 word ptr [10]; intel 认为 m16 指向的 0x1111 是 word
-- masm 认为 0x1111 指向 byte, intel 没有这想法
-
-`fpt typedef far ptr byte; t2 fpt 2222bbbbh`, 设 t2 的地址是 ds:20, 有
-
-- 变量 t2 = 偏移 20; 20 在 16 位模式里是 imm16 和 m16:16
-- masm 认为 0x2222bbbb 是 far ptr; far ptr 是 dword 所以 t2 汇编为 dword ptr [20]; intel 认为 m16:16 指向 far pointer
-- masm 认为 0x2222bbbb 指向 byte, intel 没有这想法
-- far ptr 提示 masm 生成 far jump 之类的指令
-
-```
-npt1 typedef near ptr word
-npt2 typedef ptr word
-npt3 typedef ptr
-
-fpt4 typedef far ptr word
-fpt5 typedef far ptr
-
-xxx segment
-org 100h
-s:  jmp ds:p5 ; explicit ds: to suppress cs:
-
-p1 npt1 1111h
-p2 npt2 2222h
-p3 npt3 3333h
-
-p4 fpt4 4444aaaah
-p5 fpt5 5555bbbbh
-xxx ends
-end s
-
-ml -Foout\ dd.msm -Feout\ -AT
-
-debug out\dd.com
--d 100 l20
-1337:0100  FF 2E 0E 01 11 11 22 22-33 33 AA AA 44 44 BB BB   ......""33..DD..
-1337:0110  55 55 08 B8 04 00 50 0E-E8 65 0A B8 1C 27 50 FF   UU....P..e...'P.
--r
-AX=FFFF  BX=0000  CX=0012  DX=0000  SP=FFFE  BP=0000  SI=0000  DI=0000
-DS=1337  ES=1337  SS=1337  CS=1337  IP=0100   NV UP EI PL NZ NA PO NC
-1337:0100 FF2E0E01      JMP FAR [010E]                         DS:010E=BBBB
--t
-AX=FFFF  BX=0000  CX=0012  DX=0000  SP=FFFE  BP=0000  SI=0000  DI=0000
-DS=1337  ES=1337  SS=1337  CS=5555  IP=BBBB   NV UP EI PL NZ NA PO NC
-5555:BBBB 0000          ADD [BX+SI],AL                         DS:0000=CD
--q
-```
-
-了解完 qualified type 后我完全不想再去了解 `label` 指示了, 基本上它能定义远数据标签.
 
 一些零碎知识
 
-- `:macrolabel` 仅用于 `macro`, `for`, `forc`, `repeat`, `while` 块里的 `goto` 指示
+- `:macrolabel` 仅用于 macro, for, forc, repeat, while 块里的 goto 指示
 - `$` = `this near`, current value of location counter. within structure, m510 = offset of structure; non m510 = offset of current field in structure
 - `tag1 equ this byte` = `tag1 label byte`
 
-operators ||
+#### error A2076: jump destination must specify a label
+
+A direct jump's destination must be relative to a code label. masm 不汇编 jmp immediate 只汇编 jmp label, 但汇编结果还是 jmp immediate.
+
+```
+; ml -Foout\ dd.msm -Feout\
+; debug out\dd.exe
+
+    assume ds: cs1
+
+cs1 segment
+s:
+    mov cx, cs          ; 1000:0
+    mov ds, cx
+
+    jmp word ptr ds:0   ; m16       jmp [0000]  ; in masm ds:0 = ds:[0]
+    jmp dw2             ; m16       jmp [0037]  ; dw2 is variable so no cast and [] needed
+
+    mov bx, dw2         ; m16       mov bx, [0037]
+    jmp bx              ; r16       same as jmp dw2
+
+    mov bx, offset dw2
+    jmp word ptr [bx]   ; m16       same as jmp dw2
+
+    jmp dword ptr ds:0  ; m16:16    jmp far [0000]
+    jmp dd3             ; m16:16    jmp far [0039]  ; variable dd3 doesn't need cast and []
+
+; masm doesn't allow jmp immediate, use labels instead
+
+    jmp     cs1label1   ; rel16     jmp 0037        ; same as jmp cs:cs1label1
+    jmp cs1:cs1label1   ; rel16     jmp 0037
+    jmp cs2:cs1label1   ; ptr16:16  jmp 1000:0037
+    jmp  es:cs1label1   ; ptr16:16  jmp 1000:0037
+
+;   jmp cs1:cs2label4   ; error A2074: cannot access label through segment registers
+    jmp cs2:cs2label4   ; ptr16:16  jmp 1004:0000
+    jmp  ss:cs2label4   ; ptr16:16  jmp 1004:0000
+
+cs1label1:
+dw2 dw 1
+dd3 dd 2
+cs1 ends
+
+cs2 segment
+cs2label4:
+cs2 ends
+
+s01 segment stack
+    word 32 dup (?)
+s01 ends
+    end s
+```
+
+### operators
+
+|||
 -|-
 addr            | only available in `invoke`. offset of a global or local variable
 offset          | offset of a global variable
@@ -4609,7 +5281,7 @@ sectionrel  | available only with COFF object emission
 lroffset    | Same as offset, but it generates a loader resolved offset, which allows Windows to relocate code segments
 todo        | elaborate imagerel, sectionrel, lroffset
 
-### length, size, type
+#### length, size, type
 
 masm expression     | `qh sizeof`
 -|-
@@ -4635,11 +5307,11 @@ so2 textequ % sizeof    ar2
 l2  textequ % length    ar2
 s2  textequ % size      ar2
 
-echo .    lengthof     sizeof    length       size
-% echo ar1         lo1         so1         l1          s1
-% echo ar2         lo2         so2         l2          s2
+    echo .    lengthof     sizeof    length       size
+%   echo ar1         lo1         so1         l1          s1
+%   echo ar2         lo2         so2         l2          s2
 xxx ends
-end
+    end
 
 ml -Zs dd.msm
 
@@ -4664,36 +5336,29 @@ size        | 0xffff    | 0xfffe    | 0xff01 | 0xff02 | 0xff04 | 0xff05 | 0xff06
 
 ```
 cs1 segment
-
 cl1:
-s3  db "abcdeoru"
-
+s3  byte    "abcdeoru"
 cs1 ends
+
 cs2 segment
-
 cl2:
-.radix 16
-ln1 textequ % length   cl1
-ln2 textequ % length   cl2
-ln3 textequ % length   s3
-sz1 textequ % size     cl1
-sz2 textequ % size     cl2
-sz3 textequ % size     s3
-
 lb4 label   far
 pf5 proc    far
 pf5 endp
 
-sz4 textequ % size lb4
-sz5 textequ % size pf5
+.radix 16
+ln1 textequ % length    cl1
+ln2 textequ % length    cl2
+ln3 textequ % length    s3
+sz1 textequ % size      cl1
+sz2 textequ % size      cl2
+sz3 textequ % size      s3
+sz4 textequ % size      lb4
+sz5 textequ % size      pf5
 
 % echo ln1 ln2 ln3 sz1 sz2 sz3 sz4 sz5
-
 cs2 ends
-ss1 segment stack
-    db 32 dup (?)
-ss1 ends
-end
+    end
 
 ml -Zs dd.msm
 
@@ -4723,7 +5388,7 @@ ty5 textequ % type cx
 
 % echo ty1, ty2, ty3, ty4, ty5
 xxx ends
-end
+    end
 
 ml -Zs dd.msm
 
@@ -4732,10 +5397,8 @@ ml -Zs dd.msm
 
 ### public, extern, externdef, proto, comm
 
-我不喜欢静态类型, 认为它主要的作用是拼写检查, 带来的麻烦远多于益处. 这其中类型, 类型匹配, 静态语法检查还算好, 声明则是纯粹的垃圾
-
-- declaration, 声明: 几乎是重复在定义处写过的文字, 程序员必须保持两者一致, 是无妄之灾
-- 头文件: 声明的集合, 偶尔也包含些其他东西. 头文件的效果是用头文件的内容替换引用头文件的语句, 是个有用的技术, 但用于放置声明时就是垃圾
+- declaration, 声明: 几乎是重复在定义处写过的文字, 程序员必须保持两者一致
+- 头文件: 声明的集合, 偶尔也包含些其他东西. 头文件的效果是用头文件的内容替换引用头文件的语句
 
 定义符号的文件里写 `public 符号`, 表示该符号可以在其他文件里使用; 使用符号的文件里写 `extern 符号:类型`, 表示该符号一部分 (类型部分) 在本文件里定义以帮助汇编器生成指令, 另一部分在将其声明为 public 的文件里定义.
 
@@ -4756,78 +5419,45 @@ proto 是专用于 proc 的 externdef, 1 次只能声明 1 个. proc 默认 publ
 tiny, small, compact, flat defaults to near; medium, large, huge defaults to far. must specify near or far if no .model memory-model.<br>
 comm declares a data variable external and instructs the linker to allocate the variable if it has not been explicitly defined in a module. The memory space for communal variables may not be assigned until load time, so using communal variables may reduce the size of your executable file. allocated by the linker, cannot be initialized, primarily for compatibility with communal variables in Microsoft C, not used in any other Microsoft language, not compatible with C++ and some other languages.
 
-调用段外标签的写法根据标签是否定义在本文件里而不同. 定义在本文件里时, 没有把标签声明为 far 的语法, 这么写
-
-```
-cs1 segment
-s:
-    call cs2:proc2
-    call  ds:proc2
-cs1 ends
-cs2 segment
-proc2:
-    retf
-cs2 ends
-; LINK : warning L4021: no stack segment
-end s
-```
-
-masm 不允许声明段名, error A2014: cannot define as public or external : cs2. 要调用的标签定义在其他文件里时必须声明为 far, 使用 far 标签不需要写段寄存器, 这么写
+masm 不允许声明段名, error A2014: cannot define as public or external : cs2. 要调用的标签定义在其他文件里时必须用 extern, far 标签不需要写段寄存器.
 
 ```
 ; ml -Foout\ dd.msm -Foout\ da.msm -Feout\
+; debug out\da.exe
 
 ; dd.msm
 
-extern proc2 : far
-
 cs1 segment
 s:
-    ; extern proc2 : near   - error L2002: fixup overflow at 1 in segment CS1
-    ; extern proc2 : far    - ok
-    call proc2
+; out\dd.obj(dd.msm) : warning L4004: possible fixup overflow at 2 in segment CS1
+;  target external 'proc1'
+; out\dd.obj(dd.msm) : error L2002: fixup overflow at 2 in segment CS1
+;  target external 'proc1'
+;
+;   extern proc1: near
+;   call proc1
 
-    ; error A2006: undefined symbol : cs2
-    ; call cs2:proc2
-
-    ; extern proc2 : near   - error A2074: cannot access label through segment registers
-    ; extern proc2 : far    - ok, same as call proc2
-    call es:proc2
+    extern proc2: far
+    call    proc2       ; 9a01003d0e call 0e3d:0001
+    call es:proc2       ; 9a01003d0e call 0e3d:0001
 cs1 ends
-
-; 如果为了使用 cs2 而在这里写个空定义, 则 call cs2:proc2 = call es:proc2
-;cs2 segment
-;cs2 ends
-
-; LINK : warning L4021: no stack segment
-end s
+s01 segment stack
+    word 32 dup (?)
+s01 ends
+    end s
 
 ; da.msm
 
-public proc2
+public proc1, proc2
 
 cs2 segment
+proc1:
+    retf
 proc2:
     retf
 cs2 ends
-end
+    end
 ```
-
-### ret, retn, retf
-
-intel 助记符是 ret | opcode | meaning
--|-|-
-ret imm16   | c2 | near return, pop imm16 bytes
-ret         | c3 | near return
-ret imm16   | ca | far  return, pop imm16 bytes
-ret         | cb | far  return
-
-不知谁发明的 retn 和 retf, debug 和 masm 都认识它们. 这种命名方式和 far 不一样, 按 far 的命名方式 retn 应该叫 ret, retf 应该叫 ret far.
-
-显然代码里写 ret 时汇编器无法确定是 near 还是 far, 于是 masm 定了 2 个规矩
-
-1. 修改 ret. `pn proc near` 里, ret = retn (c2 or c3); `pf proc far` 里 ret = retf (ca or cb); proc 外看 memory model.
-1. 不修改 retn, retf. 程序员用 retn, retf 明确指出需要 near 或 far return
 
 ### option
 
@@ -4871,22 +5501,6 @@ _names3@4   endp
 xxx ends
     end s
 ```
-
-### assembler hints
-
-前面多次看到为帮助汇编器生成正确的 opcode 需要程序员写额外的词, 这里总结见过的词.
-
-intel
-
-- [] 表示其后或其中的内容是 offset
-- size ptr 或 size 表示其后的用 [] 修饰的 offset 指向的内存长度是 size; 放在不是 offset 前也不一定报错. 汇编器能确定 size 时, 或不是内存时也都可以指定, 汇编器忽略匹配的指定, 对不匹配的报错. `mov ax, word 3` 可以, `mov ax, byte 3` 不行
-- far 修饰前面的 mnemonic 而不是后面的 operand, 表示选择 jmp, call 的 m16:16/32 版本, `les far ax, [100]`, `les ax, far [100]` 都是语法错误
-- imm:imm 表示 far pointer
-
-masm
-
-- assume 其中一个作用是减少 masm 生成的段寄存器重写
-
 ## tools
 
 ### 常用命令
@@ -4919,7 +5533,7 @@ com1    | serial port 1                         | also com2, com3, com4
 
 在命令行中把 cmd1 的输出从默认值修改为 cmd2 的输入时要使用管道语法即 `cmd1 | cmd2`. 管道从左往右单向传递文本.
 
-可以看到重定向和管道非常相似, 重定向把 stdio 改为 file, 管道改为 command. 如果能定义一个特殊文件名代表 command 或命令代表 file 则两种语法可以合并, 从而把占用的 3 个符号 `<>|` 缩减为 1 个. 比如假想的语法 `command | tocommand file`, tocommand 是把文件视作命令的命令, 把接收到的文本保存至文件; 或 `cmd1 > tofile cmd2`, tofile 是特殊文件名, 把其后的 command 作为文件串接到 stdio. file 和 command 的一个区别是 file 不产生输出所以无法继续串连. 多任务系统下管道的各个 command 可能同时运行.
+可以看到重定向和管道非常相似, 重定向把 stdio 改为 file, 管道改为 command. 如果能定义一个特殊文件名代表 command 或命令代表 file 则两种语法可以合并, 从而把占用的 3 个符号 `<>|` 缩减为 1 个. 比如假想的语法 `command | tocommand file`, tocommand 是把文件视作命令的命令, 把接收到的文本保存至文件; 或 `cmd1 > tofile cmd2`, tofile 是特殊文件名, 把其后的 command 作为文件串接到 stdio. 多任务系统下管道的各个 command 可能同时运行.
 
 程序的参数指命令行参数. 参数和返回值是另一种形式的输入输出, 不涉及 stdio 因而不能参与到管道中.
 
@@ -4929,7 +5543,7 @@ com1    | serial port 1                         | also com2, com3, com4
 
 `debug /?` 打印 debug 的命令行参数帮助; 在 debug 里执行 `?` 打印 debug 命令帮助.
 
-.|.|.
+||||
 -|-|-
 arguments   | number        | 输入输出的数字都是 16 进制, 不带前后缀, 忽略 h 后缀
 |           | address       | `112233` or `2244:112233` or `ds:123`
@@ -4938,7 +5552,7 @@ arguments   | number        | 输入输出的数字都是 16 进制, 不带前�
 |           | range         | `address1 address2` or `address l n`; n = 0 means 0x1,0000 = 64k
 `a` command |               | 不认识 8086 之外的指令和数据类型如 dword, fword, qword, tbyte
 |           |               | `dd`, `dw`, `;`
-|           |               | 重写段寄存器时必须段名紧跟冒号放语句前,  `es: mov ax, [] 100`
+|           |               | 段覆盖时必须段名紧跟冒号放语句前,  `es: mov ax, [] 100`
 hotkeys     | Cntl-NumLock  | 暂停, 比如打印一大块内存时暂停; 对 g 无效
 |           | Cntl-Break    | 停止并返回 debug; 对 g 无效
 
@@ -5058,57 +5672,7 @@ link /?
 
 masm611/errmsg.txt 解释了部分汇编错误.
 
-#### error A2076: jump destination must specify a label
-
-A direct jump's destination must be relative to a code label. masm 不汇编 jmp immediate, 只汇编 jmp label, 但汇编结果还是 jmp immediate.
-
-```
-; ml -Foout\ dd.msm -Feout\
-; debug out\dd.exe
-; u 0 l37
-; q
-
-cs1 segment
-    assume ds: cs1
-s:
-    mov cx, cs
-    mov ds, cx
-
-    jmp word ptr ds:0   ; m16       jmp [0000] ; in masm ds:0 = ds:[0]
-    jmp dw2             ; m16       jmp [0037] ; dw2 is variable so no cast and [] needed
-
-    mov bx, dw2         ; m16       mov bx, [0037]
-    jmp bx              ; r16       same as jmp dw2
-
-    mov bx, offset dw2
-    jmp word ptr [bx]   ; m16       same as jmp dw2
-
-    jmp dword ptr ds:0  ; m16:16    jmp far [0000]
-    jmp dd3             ; m16:16    jmp far [0039] ; variable dd3 doesn't need cast and []
-
-    ; masm doesn't allow jmp immediate, must use labels instead
-
-    jmp     cs1label1   ; rel16     jmp 0037
-    jmp cs1:cs1label1   ; rel16     jmp 0037
-    jmp cs2:cs1label1   ; ptr16:16  jmp 1000:0037 ; i don't know how to explain this
-    jmp  es:cs1label1   ; ptr16:16  jmp 1000:0037
-
-;   jmp cs1:cs2label4   ; error A2074: cannot access label through segment registers
-    jmp cs2:cs2label4   ; ptr16:16  jmp 1004:0000
-    jmp  ss:cs2label4   ; ptr16:16  jmp 1004:0000
-
-cs1label1:
-dw2 dw 1
-dd3 dd 2
-cs1 ends
-cs2 segment
-cs2label4:
-cs2 ends
-; LINK : warning L4021: no stack segment
-    end s
-```
-
-#### fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
+##### fatal error LNK1190: 找到无效的链接地址信息，请键入 0x0001
 
 > http://masm32.com/board/index.php?topic=3114.0 wjr April 15, 2014, 07:06:37 AM<br>
 If you use PEview to look into the OBJ file, and Type 0x0001 is referring to IMAGE_REL_I386_DIR16 (usually
@@ -5140,7 +5704,9 @@ function    | scroll    | back      | history   | table of contents | exit
 
 ### wlink.exe
 
-生成 wlink 的帮助文件: `echo g | wlink ? > out\wlink`. 之所以用管道是因为 wlink 即使在输出重定向时仍需要按一下键.
+- (watcom)/docs/lguide.pdf
+- JWlink 是 wlink 的分叉 https://www.japheth.de/JWlink/JWlink.htm
+- 生成 wlink 的帮助文件: `echo g | wlink ? > out\wlink`. 之所以用管道是因为 wlink 即使在输出重定向时仍需要按一下键
 
 wlink 调用 dos4gw, dos4gw 的命令行只接受很少的字符, 参数随便长一点儿就报错. 要用 dos4gw 加载 wlink 就必须把参数放 directive 文件里 - 它把参数或选项或开关叫 directive. 管道 `echo args | wlink` 能传递更多字符但受命令行长度限制. directive 里,
 
@@ -5148,16 +5714,16 @@ wlink 调用 dos4gw, dos4gw 的命令行只接受很少的字符, 参数随便�
 - 值可以使用环境变量. 假设有 set libdir=\test, 则 library %libdir%\mylib = library \test\mylib
 - 值可以用逗号隔开也可以在花括号里用空格隔开, 即 file first,second,third,fourth = file {first second third fourth}
 
-根据 (watcom)/docs/lguide.pdf, wlink 启动时先从环境变量的 `path` 里找一个特殊的 directive 文件, 处理完该文件后才处理其他输入. 这个文件的名字由环境变量 `wlink_lnk` 指定, 如果不存在就使用 `wlink.lnk`, 如果不存在就结束查找. directive 文件默认扩展名 `lnk`.
+根据文档, wlink 启动时先从环境变量的 `path` 里找一个特殊的 directive 文件, 处理完该文件后才处理其他输入. 这个文件的名字由环境变量 `wlink_lnk` 指定, 如果不存在就使用 `wlink.lnk`, 如果不存在就结束查找. directive 文件默认扩展名 `lnk`.
 
 wlink 要求代码段和栈段具有相应的类, 即 `ccc segment 'code'` 和 `sss segment 'stack'`.
 
 ### wd.exe
 
-要使用鼠标需要 dosbox 捕获鼠标, 鼠标点击很迟钝没必要用. 很多加速键和 cv 一样, 因为加载了 cvkeys.dbg.
+使用鼠标需要 dosbox 捕获鼠标, 鼠标点击很迟钝没必要用, 在 86box 里响应稍快点. 很多加速键和 cv 一样, 因为加载了 cvkeys.dbg.
 
 key      | alt-space                | ctrl-tab      | . or alt-f10  | f3
--|-|-|-
+-|-|-|-|-
 function | menu of current window   | switch window | context menu  | assembly/source
 
 action item in the main menu is identical to the context menu.
@@ -5173,27 +5739,23 @@ display watch   /close 0,0,5000,4160
 
 ## dos apps
 
-### 16-bit dos app in masm
+### masm program
 
-masm 要求源文件具备两个要素: end 和非空的 segment; 这两样东西对生成可执行文件毫无贡献, 理由是:
+masm 要求源文件具备 2 个要素: end 和非空的 segment. 这两样东西对生成可执行文件毫无贡献, 因为:
 
-- 如果程序啥都不做, 源代码应该啥都不需要写, 因此是个空文件, 而不是一个非空段 + end
-- 非空段有意义的部分是使段非空的文本, 而不是段定义
+- 如果程序啥都不做, 源代码就应该啥都不写, 因此是个空文件, 而不是一个非空段 + end
+- 非空段有意义的部分是使段非空的文本而不是段定义
 
 masm 要求源代码从两个无用的结构开始, 预示了此后的编程中会遇到很多 masm 有意或无意制造的障碍.
 
-新建一个空文件 dd.msm 用 masm 汇编看看会发生什么.
+新建一个空文件 dd.msm 用 masm 汇编看看会发生什么. `ml -Foout\ dd.msm -Feout\` 输出 `error A2088: END directive required at end of file`
 
-`ml -Foout\ dd.msm -Feout\` 输出
-```
-error A2088: END directive required at end of file
-```
-\* *-Fo 指定 ml 生成的 obj 的路径, 可以是目录; -Fe 指定连接得到的文件的路径, 可以是目录. 开关和参数间可以有空格*
+*-Fo 指定 ml 生成的 obj 的路径, 可以是目录; -Fe 指定连接得到的文件的路径, 可以是目录. 开关和参数间可以有空格.*
 
 #### end 的两个作用
 
 - 结束源文件. 毫无意义的功能
-- 后跟参数指示程序的入口, 即在源文件结束处用 end 指出起始地址. 让我想起那著名的 "点击 '开始' 以关机".
+- 后跟参数指示程序的入口, 即在源文件结束处用 end 指出起始地址. "点击 '开始' 以关机"
 
 按照 masm 的要求给 dd.msm 加上 end
 
@@ -5274,7 +5836,7 @@ xxx     ends
 
 ```
 ; exe
-; 作为起始地址的标签定义到栈里面了. 一般不会往栈里放代码但只要注意填充字节就没啥问题, com 就只有 1 个段
+; 作为起始地址的标签定义到栈里面了. 一般不会往栈里放代码但只要注意填充字节就没啥问题, 比如 com 就只有 1 个段
 ; ml -Foout\ dd.msm -Feout\
 
 xxx     segment stack
@@ -5287,9 +5849,9 @@ xxx     ends
 
 - end 后面必须是标签不能是立即数 (字面量), 否则 error A2094: operand must be relocatable
 - 把变量名放 end 后面得到 error A2095: constant or relocatable label expected
-- 根据 8086/lab.md/stack 知道 exe 运行时栈顶的 word 被改为 ff ff; 让 exe 代码和栈共用一个段时为防止覆盖那里的指令需要弄点填充字节. 写填充字节时为了确定填几个, 试了几个数值, 发现至少得 4 字节程序才正常退出, 但在 debug 里执行不正常; 用 debug 一看发现不仅是修改了最后两字节. debug out\dd.exe 时, 查看内存没啥问题; t 执行一句后再查看, 前 10 字节内容都变了. 加大填充的长度发现最后 10 字节会被修改; 隐约记得以前见过这情况. 因此要在 debug 里也能正常退出得填充 10 字节 (那填充 4 字节算不算正确?). mov ax, 4c00h int 21h 是 5 字节, 加上 10 个填充字节等于 15 字节. 为了对齐到 word 再加 1 字节, 填充了 11 字节, 否则起始 ip 是 1 而不是 0; 尽管我不知道起始 ip 是 1 有啥问题. [栈的后 10 字节](#调试器修改栈的后-10-字节)
+- 根据 8086/lab.md/stack 知道 exe 运行时栈顶的 word 被改为 ff ff; 让 exe 代码和栈共用一个段时为防止覆盖那里的指令需要弄点填充字节. 写填充字节时为了确定填几个试了几个数值, 发现至少得 4 字节程序才正常退出, 但在 debug 里执行不正常; 用 debug 一看发现不仅是修改了最后两字节. debug out\dd.exe 时, 查看内存没啥问题; t 执行一句后再查看, 前 10 字节内容都变了. 加大填充的长度发现最后 10 字节会被修改; 隐约记得以前见过这情况. 因此要在 debug 里也能正常退出得填充 10 字节 (那填充 4 字节正确吗?). mov ax, 4c00h int 21h 是 5 字节, 加上 10 个填充字节等于 15 字节. 为了对齐到 word 再加 1 字节, 填充了 11 字节, 否则起始 ip 是 1 而不是 0; 尽管我不知道起始 ip 是 1 有啥问题. [栈的后 10 字节](#调试器修改栈的后-10-字节)
 
-上面啥都不做的 masm 16 位 dos 程序包含 4 或 5 个要点
+上面啥都不做的 masm 16 位 dos 程序包含 4 或 5 个要点:
 
 - 为正常汇编, 写 masm 要求的 end
 - 为正常连接, 写 link 要求的 none empty segment
@@ -5301,19 +5863,14 @@ xxx     ends
 
 起始地址决定程序开始时 cs 和 ip 的值.
 
-**连接器如何确定起始地址**
+连接器如何确定起始地址? ml 找源文件中用 end 指出的标签, 把它写到 obj (验证 1), link 从 obj 找出 ml 写入的起始标签作起始地址. 起始地址写入 exe 文件头的 cs 和 ip; com 没有文件头, 连接器检查起始标签是不是第 1 句, 不是的话警告 l4055 (验证 2).
 
-ml 找源文件中用 end 指出的标签, 把它写到 obj<br>
-\* *验证: 用 ml -c 汇编两个 obj 文件, 一个指定起始地址一个不指定, 比较它们*<br>
-link 从 obj 找出 ml 写入的起始标签作起始地址. 起始地址写入 exe 文件头的 cs 和 ip; com 没有文件头, 连接器检查起始标签是不是第一句, 不是的话警告 l4055<br>
-\* *验证: 用 link out\dd.obj; 均不传 /tiny 参数, 分号表示省略 link 的其他参数, 分别连接两个 obj 文件*
+- 验证 1: 用 ml -c 汇编两个 obj 文件, 一个指定起始地址一个不指定, 比较它们
+- 验证 2: 用 link out\dd.obj; 均不传 /tiny 参数, 分号表示省略 link 的其他参数, 分别连接两个 obj 文件
 
-ml64 不允许 end 后跟入口, 但和 ml64 配套的 link 有 /entry 开关<br>
-\* *link 5.31.009 Jul 13 1992 没有 /entry 开关*<br>
-\* *ml64 汇编的代码一般不用自己写入口, 入口由使用的库定义, 就像 c 程序不定义入口, 而是写一个 crt 规定的回调函数 main*
+ml64 不允许 end 后跟入口, 但和 ml64 配套的 link 有 /entry 开关. *16 位 link, link 5.31.009 Jul 13 1992 没有 /entry 开关*. ml64 汇编的代码一般不自己写入口, 入口由使用的库定义, 就像 c 程序不定义入口而是写一个 crt 规定的回调函数 main. 用 ml64 汇编的代码也可以用下面语法把入口写入 obj,
 
-用 ml64 汇编的代码也可以用下面语法把入口写入 obj<br>
-https://stackoverflow.com/questions/59006082/x64-doesnt-seem-to-accept-an-entry-point-in-the-end-directive-as-x86-does-was
+- https://stackoverflow.com/questions/59006082/x64-doesnt-seem-to-accept-an-entry-point-in-the-end-directive-as-x86-does-was
 
 ```
 _DRECTVE SEGMENT INFO ALIAS(".drectve")
@@ -5321,45 +5878,39 @@ _DRECTVE SEGMENT INFO ALIAS(".drectve")
 _DRECTVE ENDS
 ```
 
-**com 文件的起始地址**
+com 没有文件头, 情况复杂, 有时忽略 end 指出的标签, 看不出规律. 列举两种:
 
-com 没有文件头. 情况复杂, 有时候忽略 end 指出的标签, 看不出规律, 我列举两种
-
-以下情况 link 不修改代码
-```
-xxx segment
-db 16 dup (1)   ; 第一句
-s:              ; 入口不是第一句
-org 0e0h        ; 使用了 org. 如果由于 org 而增加了语句的地址, 中间部分填 0
-db 32 dup (2)   ; 程序 < 257 字节
-xxx ends
-end s
-```
-
-以下情况 link 删除入口之前的代码, 这里是 `db 16 dup (1)`, 得到的 com 文件可能小于 256 字节
-```
-xxx segment
-db 16 dup (1)   ; 第一句
-s:              ; 入口不是第一句
-org 0e0h        ; 使用了 org
-db 33 dup (2)   ; 33 dup 使程序 > 256 字节
-xxx ends
-end s
-```
+- link 不修改代码
+    ```
+    xxx segment
+        db  16 dup (1)  ; 第一句
+    s:                  ; 入口不是第一句
+        org 0e0h        ; 使用了 org. 如果 org 增加了语句的地址, 中间部分填 0
+        db  32 dup (2)  ; 程序 < 257 字节
+    xxx ends
+        end s
+    ```
+- link 删除入口之前的代码, 这里是 `db 16 dup (1)`, 得到的 com 文件可能小于 256 字节
+    ```
+    xxx segment
+        db  16 dup (1)  ; 第一句
+    s:                  ; 入口不是第一句
+        org 0e0h        ; 使用了 org
+        db  33 dup (2)  ; 33 dup 使程序 > 256 字节
+    xxx ends
+        end s
+    ```
 
 好在上面两种情况都不是程序的正常写法.
 
-**dos exe 文件的起始地址**
+文件头记录连接器生成的 dos mz exe 文件的起始地址 https://wiki.osdev.org/MZ
 
-文件头记录连接器生成的入口地址. https://wiki.osdev.org/MZ
+### 从 psp 获取命令行参数
 
-### 从 psp 获取程序的命令行参数
+- int21h/ah51h - Get Current Process ID (Undocumented DOS 2.x) https://stanislavs.org/helppc/int_21-51.html
+- int21h/ah62h - Get PSP address (DOS 3.x) https://stanislavs.org/helppc/int_21-62.html
 
 ```
-; int21h/ah51h 和 int21h/ah62h 也可以获取 psp, 结果放在 bx
-; int21h/ah51h - Get Current Process ID (Undocumented DOS 2.x) https://stanislavs.org/helppc/int_21-51.html
-; int21h/ah62h - Get PSP address (DOS 3.x) https://stanislavs.org/helppc/int_21-62.html
-;
 ; 将使用 dos api 打印字符. dos api 集中在 int 21h, DOS Fn 09H 指 int21h/ah9
 ;
 ; int21h/ah9 遇到 $ 就结束打印所以不能用它, https://stackoverflow.com/questions/481344/dollar-terminated-strings 指出
@@ -5389,11 +5940,12 @@ s:
     mov ah, 40h
     mov bx, 1
     xor cx, cx      ; debug.com puts app length to dx:cx on start. only matters when using debug
-    mov cl, ds:80h  ; or ds:[80h]. masm 认为 [80h] 是 80h (注), 而 ds:80h 是 [80h]
+    mov cl, ds:80h  ; [80h] must be written as ds:80h in masm
     mov dx, 81h
     int 21h
 
-    ; always compare the return value of AX (number of bytes written) to CX (requested write size)
+; always compare the return value of AX (number of bytes written) to CX (requested write size)
+
     cmp ax, cx
     mov ax, 4c00h
     jne bx_set      ; at this point bx = 1
@@ -5404,16 +5956,6 @@ bx_set:
     int 21h
 xxx ends
     end s
-
-注: 后来看到这帖子
-https://stackoverflow.com/questions/25129743/confusing-brackets-in-masm32
-masm 根据它的规则修改你的代码
-- variable name               去除所有方括号, 替换为 [offsetof var], 认为是变量的值
-- constant, const expr, imm   去除所有方括号, 认为是立即数
-- register                    不修改方括号
-某个角度看也合理, 比如 t1 = 1 和 t2 dw 2, t1 在代码中替换成 1, t2 在代码中替换成偏移比如 27,
-由于使用 t1 和 t2 时都想使用他们的值, 所以 t1 应该生成 1, t2 应该生成 [27]. 当然不合理的地方多了,
-比如 [t1] 应该是 [1] 而不是仍然生成 1
 ```
 
 下面分别用 int21h/ah2, int21h/ah9, int21h/ah40h, int29h 打印命令行参数.
@@ -5431,6 +5973,7 @@ s:
 ; AH    09H
 ; DS:DX address of a string terminated with a '$' (ASCII 24H)
 ; Returns: none
+
     mov ah, 9
     mov dx, msg ; msg is defined at bottom
     int 21h
@@ -5454,7 +5997,7 @@ exit:
     int 20h
 
 @@: cmp cl, 7fh ; 参数长度至多 0x7e = 126, 由于要用 jb 所以和 127 比较
-    jb  @f
+    jb  @f      ; [psp:0x80] 应该不会超过 0x7e 所以这段代码应该没必要
     mov cl, 7eh
 
 ; at this point al = user input letter, cl = len of args, ds = seg psp
@@ -5478,11 +6021,13 @@ a:  call ah2
 b:  call ah40h
     jmp exit
 
+ah2 proc
+; destroys ax, bx, cx, dx
+
 ; int21h/ah2
 ; dl = character to write
 ; returns none
-ah2:
-    ; destroys ax, bx, cx, dx
+
     mov ah, 2
     mov bx, 81h
 @@: mov dl, [bx]
@@ -5490,35 +6035,39 @@ ah2:
     inc bx
     loop @b
     retn
+ah2 endp
 
+ah40h:
 ; int21h/ah40h
 ; bx = file handle; 1 = the same device (such as the screen) as service ah=9
 ; cx = the number of bytes to be written
 ; ds:dx points to the data to be written
-ah40h:
+
     mov ah, 40h
     mov bx, 1
     mov dx, 81h
     int 21h
     retn
 
+int29h proc
+; destroys ax, bx, cx
+
 ; int29h 和 int21h/ah2 区别是 console redirect 对 int29h 无效
 ; al = character to output
-int29h:
-    ; destroys ax, bx, cx
+
     mov bx, 81h     ; [dx] causes error a2031: must be index or base register
 @@: mov al, [bx]    ; valid: [bx], [bp], [si], [di]
     int 29h
     inc bx
     loop @b
     retn
+int29h endp
 
 msg:
     db  '      a - int21h/ah2',     13, 10,
         '      b - int21h/ah40h',   13, 10,
         '<other> - int29h',         13, 10,
         'please choose output method by entering a, b or any other letter: $'
-
 xxx ends
     end s
 ```
@@ -5574,36 +6123,40 @@ text    ENDS
 ; 需要在汇编时用 -D 定义宏用于代码里的条件汇编, 宏名的作用见注释
 ; 生成后在调试器里执行, 查看执行结果
 
+; ml -DcomJmp0 -Foout\ dd.msm -Feout\
+; psp 开始处的 1 个 word 是 int 20h, 跳到 psp:0 执行它
+
     ifdef   comJmp0
-    ; ml -DcomJmp0 -Foout\ dd.msm -Feout\
-    ; psp 开始处的 1 个 word 是 int 20h, 跳到 psp:0 执行它
 
     .model  tiny
     .code
 l0: org     256
 s:  jmp     l0      ; masm 不支持 jmp immediate
 
+; ml -DcomRetn -Foout\ dd.msm -Feout\
+; 程序进入时 sp 开始处的 1 个 word 是 0, retn 会跳到 psp:0
+; 这导致 sp 不等于进入时的 sp
+
     elseifdef comRetn
-    ; ml -DcomRetn -Foout\ dd.msm -Feout\
-    ; 程序进入时 sp 开始处的 1 个 word 是 0, retn 会跳到 psp:0
-    ; 这导致 sp 不等于进入时的 sp
 
     .model  tiny
     .code
 s:  retn
 
+; ml -DwrongComRetf -Foout\ dd.msm -Feout\
+; 错误的写法. retf 使用栈上的 2 个 word 而栈上只有 1 个是正确值
+
     elseifdef wrongComRetf
-    ; ml -DwrongComRetf -Foout\ dd.msm -Feout\
-    ; 错误的写法. retf 使用栈上的 2 个 word 而栈上只有 1 个是正确值
 
     .model  tiny
     .code
 s:  retf
 
+; ml -DexePushPushRetf -Foout\ dd.msm -Feout\
+; kb-q72848, 保存 seg psp 和 0, 然后 far return
+; 注意, 这个生成的是 exe
+
     elseifdef exePushPushRetf
-    ; ml -DexePushPushRetf -Foout\ dd.msm -Feout\
-    ; kb-q72848, 保存 seg psp 和 0, 然后 far return
-    ; 注意, 这个生成的是 exe
 
     .model  huge
     .stack
@@ -5614,10 +6167,11 @@ s:  push    ds      ; 开始时 ds = es = seg psp
     ; ...           ; some codes
     retf            ; 用 pop ip pop cs 实现 jmp psp:0
 
+; ml -DexeJmpFar -Foout\ dd.msm -Feout\
+; 跳到 psp:0. psp 是运行时得到的值所以不能 jmp ptr16:16 只能 jmp m16:16, 这个 memory 使用栈
+; 和 exePushPushRetf 基本一样除了 1. 也可以不用栈, 2. 如果用栈则导致 sp 不等于进入时的 sp
+
     elseifdef exeJmpFar
-    ; ml -DexeJmpFar -Foout\ dd.msm -Feout\
-    ; 跳到 psp:0. psp 是运行时得到的值所以不能 jmp ptr16:16 只能 jmp m16:16, 这个 memory 使用栈
-    ; 和 exePushPushRetf 基本一样除了 1. 也可以不用栈, 2. 如果用栈则导致 sp 不等于进入时的 sp
 
     .model  large
     .stack
@@ -5628,9 +6182,10 @@ s:  push    ds
     mov     bp, sp
     jmp dword ptr [bp]
 
+; ml -Foout\ dd.msm -Feout\
+; 这个分支生成的程序只是打印提示, 让重新汇编
+
     else
-    ; ml -Foout\ dd.msm -Feout\
-    ; 这个分支生成的程序只是打印提示, 让重新编译
 
 te  textequ <please specify the code path when compiling, e.g. ml -DexePushPushRetf...>
     echo
@@ -5650,28 +6205,70 @@ s:  mov     dx, offset s1
     end s
 ```
 
-### mz com ?
+### mz com?
 
-MZ = 4d 5a = dec bp pop dx, 很正常的指令. 如果 com 文件以这两条指令开始会有啥后果? 下面程序生成后运行正常. 可是给 msg 加几个字符后就啥都不打印了. 试了一会发现只有 msg 长度小于 11 才会打印. 不明白.
+MZ = 4d 5a = dec bp pop dx, 很正常的指令. 如果 com 文件以这两条指令开始会有啥后果? 下面程序在 dosbox-x 里运行正常, 可是给 msg 加几个字符后就啥都不打印了, 也没法调试. 试了一会发现只有 msg 长度小于 11 才会打印, 不明白. 86box 说 cannot execute d:\out\dd.com.
 
 ```
 ; ml -Foout\ dd.msm -Feout\ -AT
 
 xxx segment
-    org 100h
+    org 256
 s:
     dec bp
     pop dx
     push dx
 
+    mov ah, 40h
     mov bx, 1
     mov cx, lengthof msg
-    mov dx, offset msg
-    mov ah, 40h
-    int 33
-    retn
+    mov dx, offset   msg
+    int 21h
+    ret
 
-msg db 'MZ = 4d 5a'
+msg byte    'MZ = 4d 5a'
+xxx ends
+    end s
+```
+
+### bios vga fill
+
+- https://stackoverflow.com/questions/47941699/using-32-bit-registers-in-masm-without-changing-the-default-segment-definition-s
+
+这个程序改变 video mode. cv out\dd.com 调试时会提醒没加 -s 参数, 不加此参数后续的显示会不正常.
+
+```
+; 用 vga 调色盘 64 号填充 320x200 256-color vga 屏幕, 按任意键退出
+;
+; ml -Foout\ dd.msm -Feout\ -AT
+
+xxx segment
+s:
+    mov ax, 0f00h   ; int10h/ahfh query current video info
+    int 10h         ; al = current video mode, bh = current active video page (0-based)
+    mov bl, al      ; save to bl
+
+    mov ax, 13h     ; int10h/ah0 set video mode
+    int 10h         ; al = 13h, graphic 320x200 256-color vga
+
+    mov di, 0a000h
+    mov es, di
+    xor di, di      ; es:di -> vga pixel buffer
+
+    mov ah, 64      ; vga palette index 64
+    mov al, ah      ; will use stosw
+    mov cx, 32000   ; 320x200 pixels = 320x100x2 bytes = 320x100 words
+    cld             ; ensure that string ops auto-increment
+    rep stosw       ; fill the screen
+
+    xor ax, ax      ; int16h/ah0 read (wait for) next keystroke
+    int 16h
+
+    xor ax, ax      ; int10h/ah0 set video mode
+    mov al, bl      ; al = previously saved
+    int 10h
+
+    int 20h
 xxx ends
     end s
 ```
@@ -5683,7 +6280,7 @@ xxx ends
 - 处理异常很麻烦, int 5 又已被滥用为 dos 截屏, 服务例程不能准确判断 int 5 发生的原因
 - 执行速度还不如两个比较指令加跳转指令. 一般通过把 m16&16 放在数组开头, 让它们都能载入缓存, 来提高 m16&16 的读取速度
 
-Bound Range Exceeded, 5, Fault, #BR. fault 的 return address 是产生 fault 的语句的地址. fault 没有固定处理方式. cpu 的本意是让纠正产生 fault 的语句后重试; 其它常用方式是如果代码提供了异常处理程序则调用它, 否则结束程序. 由于我不知道如何修改产生 fault 的语句, 并且似乎默默地纠正 #br 不算好做法, 所以采用异常处理程序.
+Interrupt 5, Bound Range Exceeded Exception, #BR, Fault. fault 的 return address 是产生 fault 的语句的地址, 用意是让纠正产生 fault 的语句后重试. 不确定什么叫 "纠正产生 fault 的语句", 估计是修改执行上下文让 bound 不再抛异常, 因为总不至于是把 bound 指令修改为 nop 吧? 这里定义了一个异常处理函数, bound 抛出异常后在 isr 里修改返回地址让 iret 去异常处理函数而不是回到 bound 语句. 我不觉得这是常规做法.
 
 - https://stackoverflow.com/questions/71070990/x86-division-exception-return-address
 - https://stackoverflow.com/questions/33029457/what-to-do-in-interrupt-handler-for-divide-by-zero
@@ -5691,114 +6288,112 @@ Bound Range Exceeded, 5, Fault, #BR. fault 的 return address 是产生 fault �
 ```
 ; ml -Foout\ dd.msm -Feout\
 
-.186
-.model tiny
+    .186
+    .model  tiny
 
-.code
-    org 100h
+    .code
+    org     256
 s:
-    mov ax, 8       ; won't throw
-    bound ax, mem
+    mov     ax, 8       ; won't throw
+    bound   ax, mem
 
-    call setIv5
+    mov     iv5 + 2, cs
+    call    xchgIv5sti
 
-    int 5 ; return address = next instruction of int 5
+    int     5           ; return address = next line
 
-    push @f         ; exception handler jumps to @f when done
-    push catch      ; exception handler
-    mov ax, 3       ; will throw
-    bound ax, mem   ; return address = this instruction
-    add sp, 4       ; if no exception
-
+    push    @f          ; used by exception handler
+    push    catch       ; exception handler, it jumps to @f when done
+    mov     ax, 3       ; will  throw
+    bound   ax, mem     ; return address = this line
+    add     sp, 4       ; won't reach because the catch proc returns to the next line
 @@:
-    push @f
-    push catch
-    mov ax, 8       ; won't throw
-    bound ax, mem
-    add sp, 4
-
+    push    @f
+    push    catch
+    mov     ax, 8       ; won't throw
+    bound   ax, mem
+    add     sp, 4       ; will  reach
 @@:
-    push @f
-    push catch
-    mov ax, 3       ; will throw
-    bound ax, mem
-    add sp, 4
-
+    push    @f
+    push    catch
+    mov     ax, 3       ; will  throw
+    bound   ax, mem
+    add     sp, 4       ; won't reach
 @@:
-    push @f
-    push catch
-    mov ax, 3       ; will throw
-    bound ax, mem
-    add sp, 4
-
+    push    @f
+    push    catch
+    mov     ax, 3       ; will  throw
+    bound   ax, mem
+    add     sp, 4       ; won't reach
 @@:
-    call restoreIv5
-    int 20h
+    call    xchgIv5sti
+    ret
+
+isr5    proc
+; if caused by int 5, iret. calling the original isr5 may also be necessary
+; else assume caused by bound and iret to catch proc
+;
+; determine if it's caused by int 5 by checking if [offiret - 2] == cd05
+; this check fails when int 5 is followed by a bound instruction that throws
+;
+; stack = offiret, segiret, flags, catch, ...
+
+    push    bp          ; stack = bp, offiret, ...
+    mov     bp, sp
+    push    bx
+
+    mov     bx, [bp + 2]            ; bx = offiret
+    cmp     word ptr [bx - 2], 5cdh ; cd 05 = int 5, len (cd 05) = 2
+    je      @f
+
+    mov     bx, [bp + 8]            ; lead iret to the catch proc
+    mov     [bp + 2], bx
+@@:
+    pop     bx
+    pop     bp
+    iret
+isr5    endp
 
 catch:
-    ; stack = catch, @f
-    mov bx, 1
-    mov cx, lengthof msg
-    mov dx, offset msg
-    mov ah, 40h
-    int 21h
-    add sp, 2
+; stack = catch, @f, ...
+    add     sp, 2
+    mov     ah, 40h
+    mov     bx, 1
+    mov     cx, lengthof msg
+    mov     dx, offset   msg
+    int     21h
     retn
 
-setIv5:
-    mov dx, 0
-    mov es, dx
+xchgIv5sti:
+    push    ax
+    push    bx
+    push    es
 
-    cli ; save interrupt vector #5
-    mov dx, es:(5 * 4)
-    mov iv5, dx
-    mov dx, es:(5 * 4 + 2)
-    mov iv5 + 2, dx
+    xor     ax, ax
+    mov     es, ax
+    mov     ax, iv5
+    mov     bx, iv5 + 2
+
+    cli
+    xchg    ax, es:(5 * 4)
+    xchg    bx, es:(5 * 4 + 2)
     sti
 
-    cli ; set iv #5
-    mov es:(5 * 4), isr5
-    mov es:[5 * 4 + 2], cs
-    sti
+    mov     iv5 + 0, ax
+    mov     iv5 + 2, bx
+
+    pop     es
+    pop     bx
+    pop     ax
     retn
 
-restoreIv5:
-    mov dx, iv5
-    cli ; relies on es = 0
-    mov es:(5 * 4), dx
-    mov dx, iv5 + 2
-    mov es:(5 * 4 + 2), dx
-    sti
-    retn
-
-; iret jumps to segment:offset. only offset part of catch was pushed,
-; this limits catch clause and bound instruction into same segment
-isr5:
-    push bp
-    mov bp, sp ; stack = former-bp, bound-offset, bound-segment, flags, catch
-    push bx
-
-    ; just iret if caused by int 5. in reality calling original isr5 may be needed
-    mov bx, [bp + 2]            ; bx = bound-offset or next instruction of int 5
-    cmp word ptr [bx - 2], 5cdh ; cd 05 = int 5, len (cd 05) = 2
-    je @f
-
-    ; otherwise jump to catch clause
-    mov bx, [bp + 8]
-    mov [bp + 2], bx
-
-@@:
-    pop bx
-    pop bp
-    iret
-
-iv5 word 0, 0
-mem word 5, 10
-msg byte 'in catch clause (exception handler), called by isr5', 13, 10
-end s
+iv5 word    isr5, ?
+mem word    5, 10
+msg byte    'in catch proc (exception handler), called by isr5', 13, 10
+    end     s
 ```
 
-我曾认为既然程序只是执行然后退出, 那么要处理异常应该是调用 dos api 注册一个处理函数而不是自己修改中断向量, 这样更容易和其它程序共存. dos 确实有 int21h/ah25h 和 int21h/ah35h 来设置和获取中断向量, 但实现极其简单, 跟自己修改中断向量没啥区别. 后来我的认识是, 既然 dos 里全都是独占程序, 那么执行时就无需和其它程序比如 tsr 配合, 退出时恢复到进入前的状态就行了, tsr 如何和其它程序共存由它自己想办法.
+我曾认为既然程序只是执行然后退出, 那么处理异常应该是调用 dos api 注册一个处理函数而不是自己修改中断向量, 这样更容易和其它程序共存. dos 确实有 int21h/ah25h 和 int21h/ah35h 来设置和获取中断向量, 但实现极其简单, 跟自己修改中断向量没啥区别. 后来我的认识是, 既然 dos 里全都是独占程序, 那执行时就无需和其它程序比如 tsr 配合, 退出时恢复到进入前的状态就行了, tsr 如何和其它程序共存由它自己想办法.
 
 ### 调试器修改栈的后 10 字节
 
@@ -5818,7 +6413,7 @@ sp              0xfffe                  0x20
 - com 起始 cs = ds, 运行时所有标签的偏移 + 256
 - 段的地址在加载时确定, 是正确的值, 但 com 不能使用段名, error A2118: cannot have segment address references with TINY model, 所以既不能用段名也不能把标签放另一个段里 jump 过去
 
-com 修改了代码的偏移, 从段地址入手给 ds + 16 只能解决一部分问题
+com 修改了代码的偏移, 从段值入手给 ds + 16 只能解决一部分问题.
 
 code | solved | why
 -|-|-
@@ -5995,48 +6590,6 @@ s:
 db 4 dup (0)
 xxx ends
 end s
-```
-
-### bios vga fill
-
-- https://stackoverflow.com/questions/47941699/using-32-bit-registers-in-masm-without-changing-the-default-segment-definition-s
-
-这个程序改变 video mode. cv out\dd.com 调试时会提醒没加 -s 参数, 不加此参数后续的显示会不正常.
-
-```
-; 用 vga 调色盘 64 号填充 320x200 256-color vga 屏幕, 按任意键退出
-;
-; ml -Foout\ dd.msm -Feout\ -AT
-
-xxx segment
-s:
-    mov ax, 0f00h   ; int10h/ahfh query current video info
-    int 10h         ; al = current video mode, bh = current active video page (0-based)
-    mov bl, al      ; save to bl
-
-    mov ax, 13h     ; int10h/ah0 set video mode
-    int 10h         ; al = 13h, graphic 320x200 256-color vga
-
-    mov di, 0a000h
-    mov es, di
-    xor di, di      ; es:di -> vga pixel buffer
-
-    mov ah, 64      ; vga palette index 64
-    mov al, ah      ; will use stosw
-    mov cx, 32000   ; 320x200 pixels = 320x100x2 bytes = 320x100 words
-    cld             ; ensure that string ops auto-increment
-    rep stosw       ; fill the screen
-
-    xor ax, ax      ; int16h/ah0 read (wait for) next keystroke
-    int 16h
-
-    xor ax, ax      ; int10h/ah0 set video mode
-    mov al, bl      ; al = previously saved
-    int 10h
-
-    int 20h
-xxx ends
-    end s
 ```
 
 ### struct, local, assume bp: ptr records

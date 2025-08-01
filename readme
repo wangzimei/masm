@@ -92,6 +92,25 @@ dosbox-x.app/contents/macos/dosbox-x
 终端进入 dosbox-x.app 所在目录执行 chmod +x debug.command
 双击 debug.command 会打开终端并启动 dosbox-x, 后续可以调用 debugger.
 
+gdt 命令打印类似下面的内容:
+GDT Base:0000D3EE Limit:00000087
+0000: b:00000000 type: 00 parbg
+      l:00000000 dpl : 0  00000
+
+- 0000 = selector index, b = base, l = limit
+- type 有 9, b, 12, 1a 等, 不明白啥意思. 0x12 和 0x1a 是 5 位数字, intel 的 segment type 是 4 位
+- intel sdm, vol.3, Figure 3-8. Segment Descriptor
+    - p = segment present
+    - a = avl = available for use by system software
+    - r 没找到对应. readable?
+    - b = big = d/b. 很麻烦, 基本上 0 = 16-bit segment, 1 = 32-bit
+    - g = granularity
+- 没啥用的两个连接
+    - https://dosbox-x.com/doxygen/html/debug_8cpp_source.html line 371, desc.saved.seg.(p, avl, r, big, g)
+    - https://dosbox-x.com/doxygen/html/cpu_8h_source.html line 261, S_Descriptor
+- ldt 命令列出的条目第 1 项居然不是 0 而是 4, 可能是把第 2 位也算上了. 多次调用 ldt 列出的内容不一致
+- selinfo 命令列出的内容经常出错
+
 help 未列出的命令
 run     调试里的 run
 quit    关闭 dosbox-x

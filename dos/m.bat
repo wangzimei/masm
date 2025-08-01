@@ -122,6 +122,17 @@ cwsdpmi -s-
 debugbox out\dd 1
 goto eof
 
+:cwsdpmiexed
+ml -nologo -Foout\ dd.msm -c
+if errorlevel 1 goto eof
+
+link /nologo out\dd, out\dd;
+if errorlevel 1 goto eof
+
+cwsdpmi -s-
+debugbox out\dd.exe
+goto eof
+
 :glide211
 ml -nologo -Foout\ dd.msm -c
 if errorlevel 1 goto eof
