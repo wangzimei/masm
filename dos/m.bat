@@ -57,6 +57,10 @@ goto eof
 ml -nologo -Flout\ -Sa -Zs dd.msm
 goto eof
 
+:ep
+> out\dd.ep ml -nologo -EP dd.msm
+goto eof
+
 :2
 ml -nologo -Foout\ da.msm -Foout\ dd.msm -c
 link /nologo out\da out\dd, out\dd;

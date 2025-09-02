@@ -653,13 +653,6 @@ cpu 如果闷头执行指令就体现不出响应性, 响应是响应周边硬�
 
 - https://wiki.osdev.org/Interrupt_Vector_Table
 
-```
-memory
-1024 = 1k = 0x400       -
-        real mode Interrupt Vector Table (IVT)
-0                       -
-```
-
 用 debug 把内存 0:0 开始的 1k 字节打印到文件. 由于输出重定向到了文件, 输入导致的回显都不出现在屏幕上, 按 q 回车退出后查看文件 fff,
 
 ```
@@ -1247,6 +1240,10 @@ dos 的 16 位 exe 又叫 mz, 开头的两个字节是 4D 5A, ascii MZ. windows 
 - https://retrocomputing.stackexchange.com/questions/14520/how-did-large-com-files-work
 - https://github.com/microsoft/MS-DOS/blob/master/v2.0/source/EXEC.ASM#L331
 
+示例
+
+- [mz com?](#mz-com)
+
 DISKCOMP, DISKCOPY, FORMAT, MODE, MORE, TREE 是以 .com 结尾的 exe, 因为老的 bat 文件可能使用命令的全名, win nt 为兼容这些 bat 就保留了前述 exe 的原名. 执行命令时如果省略扩展名, dos 先找 com 再找 exe, 比如 foo 依次找 `foo`, `foo.com`, `foo.exe`. win nt 环境变量 PATHEXT 可以指定扩展名顺序, 默认仍然是 com 先于 exe.
 
 #### psp
@@ -1346,13 +1343,15 @@ DS=0040  ES=1337  SS=1337  CS=1337  IP=011A   NV UP EI PL ZR NA PE NC
 #### terminate but stay resident
 
 - http://www.techhelpmanual.com/20-terminate_and_stay_resident__tsr_.html
+- https://www.plantation-productions.com/Webster/www.artofasm.com/DOS/pdf/ch18.pdf
+- https://www.fysnet.net/tsrdemo.htm
 
 tsr, 终止但驻留. 这种程序把一些代码驻留在内存然后返回 dos. dos 提供了 2 个 api 支持 tsr:
 
 - `dos 1.0` int 27h: terminate but stay resident, 驻留至多 64k bytes
 - `dos 2.0` int21h/ah31h: terminate & stay resident, 驻留至多 64k 个 16-bytes, 接受返回值
 
-这俩和 int21h/ah4ch 的区别是会保留 environment 和程序的前一部分. 俩均从从程序的末尾释放一些内存决定了 tsr 代码的安排方式; 均使用 psp 的一些字段决定了 tsr 一般都会保留 psp 从而多占用一点儿内存; 总之两个函数都很粗糙, 深层原因可能是 loader 不支持 tsr. tsr 程序首先要回答几个问题:
+这俩和 int21h/ah4ch 的区别是会保留 environment 和程序的前一部分. 俩均从程序的末尾释放一些内存决定了 tsr 代码的安排方式; 均使用 psp 的一些字段决定了 tsr 一般都会保留 psp 从而多占用一点儿内存; 总之两个函数都很粗糙, 深层原因可能是 loader 不支持 tsr. tsr 程序首先要回答几个问题:
 
 - 放啥?
     - 最简单是驻留整个程序, 但诸如安装之类的一次性代码不会再用到, 就浪费了内存
@@ -1626,16 +1625,11 @@ C:\>debug
 -q
 ```
 
-resources on tsr
-
-- https://www.plantation-productions.com/Webster/www.artofasm.com/DOS/pdf/ch18.pdf
-- https://www.fysnet.net/tsrdemo.htm
-
 #### expanded memory
 
-1978 | 1982  | 1985  | 1987    | 1988       | 1989     | 1991       |  1993
+1978 | 1982  | 1985  | 1987    | 1988       | 1989     | 1991       | 1993
 -|-|-|-|-|-|-|-
-8086 | 80286 | 80386 | ems 4.0 | ms-dos 4.0 | 80376    | xms 3.0    |   pentium
+8086 | 80286 | 80386 | ems 4.0 | ms-dos 4.0 | 80376    | xms 3.0    | pentium
 ||||                           | emm386.sys | 80486    | ms-dos 5.0
 |||||                                       | dpmi 0.9 | emm386.exe
 
@@ -2354,7 +2348,7 @@ dos extender 的程序模型是: 程序员编写 32 位代码, 告诉连接器�
 
 1.9 安装包 84m, 在 dos 里安装后是 200m, 安装后的文件大部分都用不到, 我把它移到 /dos 外面了, 以后用 (watcom) 指代该目录. 使用 dos4gw 的 dos 程序在 (watcom)/docs/lguide.pdf 的 9 The OS/2 Executable and DLL File Formats 里称为 OS/2 32-bit linear executable file format, 缩写是 le. 适用于 dos 的程序在 (watcom)/binw. 简单的程序只需要两个 masm 之外的 dos 文件, open watcom linker wlink.exe 和 dos4gw stub wstub.exe. 新建目录 /dos/watcom, 把 (watcom)/binw 里的 wlink.exe, wstub.exe 拷贝过来. 我拷贝了下列文件,
 
-in binw     | group     | .
+in binw     | group     ||
 -|-|-
 wasm.exe    |           | 部分兼容 masm 语法. 生成帮助文件: `> out\wasm wasm -?`
 wdis.exe    |           | 反汇编 obj
@@ -2368,7 +2362,7 @@ stub32a.exe |           | stub
 dos4gw.exe  |           | extender. https://flaterco.com/kb/ow.html section "DOS/4GW replacement"
 wstub.exe   |           | stub
 
-关闭 dosbox, 如下修改其配置文件中环境变量的 path, 打开 dosbox,
+关闭 dosbox, 如下修改其配置文件中环境变量的 path 后再打开,
 
 ```
 [autoexec]
@@ -4818,10 +4812,11 @@ xxx ends
 |||
 -|-
 reserved words              | 610guide, Appendix D MASM Reserved Words<br>cpu 厂商规定的指令助记符<br>masm 规定的指示 directives, 属性 attributes, 操作符 operators, 预定义符号 predefined symbols
+#^`~                        | error A2044: invalid character in file
 identifier                  | at most 247 chars, 248+ error A2043: identifier too long<br>first char: $?@_a-z<br>rest chars: first char plus 0-9<br>after `option dotname`, first char can be .<br>masm keywords can use % as first char
 line                        | at most 512 chars, 513+ error A2039: line too long
 integer constants           | 9, 1b, 1y, 7o, 7q, 9d, 9t, 0fh<br>字面量基数不是 16 时可以用 b, d 后缀; `.radix constexpr` 改变此后字面量的基数; 不能以 16 进制的字母打头, 需要前缀 0<br>"abc", 'abc': 串里字符的 ascii, "abc" = 979899, 唯一的转义是两个引号表示一个引号
-floating-point constants    | 2.523E1, -3.6e-2, 5.<br>always evaluates digits of real numbers as base 10<br>can also specify the encoded format with hexadecimal digits, end with r, cannot be signed: 3F800000r
+floating-point constants    | 2.523E1, -3.6e-2, 5., 27r<br>always evaluates digits of real numbers as base 10<br>can also specify the encoded format with hexadecimal digits, end with r, cannot be signed: 3F800000r
 text constants              | < some text >
 operators                   | qh/contents/assembly/operators
 constant expressions        | constexpr. integer constants and optionally operators
